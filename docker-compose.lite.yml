@@ -1,14 +1,12 @@
 # =============================================================================
-# EventFlow Platform - Production Docker Compose
-# Complete microservices orchestration with all dependencies
+# EventFlow Platform - Lite Production Docker Compose
+# Optimized for resource-constrained environments (e.g., micro instances)
+# Removes observability stack and tunes JVM heap sizes
 # =============================================================================
 # 
 # Usage:
-#   docker-compose up --build        # Build and start all services
-#   docker-compose up -d             # Start in detached mode
-#   docker-compose logs -f           # Follow logs
-#   docker-compose down              # Stop all services
-#   docker-compose down -v           # Stop and remove volumes
+#   docker-compose -f docker-compose.lite.yml up --build
+#   make up-lite
 #
 # =============================================================================
 
@@ -37,7 +35,8 @@ services:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
       ZOOKEEPER_SYNC_LIMIT: 2
-      KAFKA_OPTS: "-Dzookeeper.4lw.commands.whitelist=*"
+      # Heap size tuning for micro instances
+      KAFKA_OPTS: "-Dzookeeper.4lw.commands.whitelist=* -Xmx128M -Xms128M"
     healthcheck:
       test: ["CMD-SHELL", "echo srvr | nc localhost 2181 | grep Zookeeper"]
       interval: 10s
@@ -79,6 +78,8 @@ services:
       KAFKA_LOG_RETENTION_HOURS: 168
       KAFKA_LOG_SEGMENT_BYTES: 1073741824
       KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
+      # Heap size tuning for micro instances
+      KAFKA_HEAP_OPTS: "-Xmx256M -Xms256M"
     healthcheck:
       test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:29092"]
       interval: 10s
@@ -172,7 +173,7 @@ services:
       redis-server
       --appendonly yes
       --appendfsync everysec
-      --maxmemory 512mb
+      --maxmemory 256mb
       --maxmemory-policy allkeys-lru
       --tcp-keepalive 300
       --timeout 0
@@ -209,7 +210,6 @@ services:
         condition: service_healthy
     ports:
       - "8001:8080"
-      - "9101:9090"
     environment:
       ENVIRONMENT: production
       SERVICE_NAME: auth
@@ -219,8 +219,9 @@ services:
       KAFKA_METRICS_TOPIC: service-metrics
       KAFKA_LOGS_TOPIC: service-logs
       LOG_LEVEL: info
-      JAEGER_ENDPOINT: http://jaeger:14268/api/traces
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      # Tracing disabled in lite mode
+      JAEGER_ENDPOINT: ""
+      OTEL_EXPORTER_OTLP_ENDPOINT: ""
     networks:
       - eventflow-network
     labels:
@@ -245,7 +246,6 @@ services:
         condition: service_healthy
     ports:
       - "8002:8080"
-      - "9102:9090"
     environment:
       ENVIRONMENT: production
       SERVICE_NAME: orders
@@ -255,8 +255,8 @@ services:
       KAFKA_METRICS_TOPIC: service-metrics
       KAFKA_LOGS_TOPIC: service-logs
       LOG_LEVEL: info
-      JAEGER_ENDPOINT: http://jaeger:14268/api/traces
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      JAEGER_ENDPOINT: ""
+      OTEL_EXPORTER_OTLP_ENDPOINT: ""
     networks:
       - eventflow-network
     labels:
@@ -281,7 +281,6 @@ services:
         condition: service_healthy
     ports:
       - "8003:8080"
-      - "9103:9090"
     environment:
       ENVIRONMENT: production
       SERVICE_NAME: payments
@@ -291,8 +290,8 @@ services:
       KAFKA_METRICS_TOPIC: service-metrics
       KAFKA_LOGS_TOPIC: service-logs
       LOG_LEVEL: info
-      JAEGER_ENDPOINT: http://jaeger:14268/api/traces
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      JAEGER_ENDPOINT: ""
+      OTEL_EXPORTER_OTLP_ENDPOINT: ""
     networks:
       - eventflow-network
     labels:
@@ -317,7 +316,6 @@ services:
         condition: service_healthy
     ports:
       - "8004:8080"
-      - "9104:9090"
     environment:
       ENVIRONMENT: production
       SERVICE_NAME: notification
@@ -327,8 +325,8 @@ services:
       KAFKA_METRICS_TOPIC: service-metrics
       KAFKA_LOGS_TOPIC: service-logs
       LOG_LEVEL: info
-      JAEGER_ENDPOINT: http://jaeger:14268/api/traces
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      JAEGER_ENDPOINT: ""
+      OTEL_EXPORTER_OTLP_ENDPOINT: ""
     networks:
       - eventflow-network
     labels:
@@ -359,7 +357,6 @@ services:
         condition: service_healthy
     ports:
       - "8005:8080"
-      - "9105:9090"
     environment:
       ENVIRONMENT: production
       SERVICE_NAME: analyzer
@@ -373,8 +370,8 @@ services:
       REDIS_PASSWORD: ""
       REDIS_DB: "0"
       LOG_LEVEL: info
-      JAEGER_ENDPOINT: http://jaeger:14268/api/traces
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      JAEGER_ENDPOINT: ""
+      OTEL_EXPORTER_OTLP_ENDPOINT: ""
       # Analyzer thresholds
       CPU_THRESHOLD: "80"
       MEMORY_THRESHOLD: "85"
@@ -407,7 +404,6 @@ services:
         condition: service_healthy
     ports:
       - "8006:8080"
-      - "9106:9090"
     environment:
       ENVIRONMENT: production
       SERVICE_NAME: alert-engine
@@ -421,8 +417,8 @@ services:
       REDIS_PASSWORD: ""
       REDIS_DB: "1"
       LOG_LEVEL: info
-      JAEGER_ENDPOINT: http://jaeger:14268/api/traces
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      JAEGER_ENDPOINT: ""
+      OTEL_EXPORTER_OTLP_ENDPOINT: ""
       # Alert dispatchers (configure as needed)
       SLACK_ENABLED: "false"
       SLACK_WEBHOOK_URL: ""
@@ -462,7 +458,6 @@ services:
         condition: service_healthy
     ports:
       - "8007:8080"
-      - "9107:9090"
     environment:
       ENVIRONMENT: production
       SERVICE_NAME: ui-backend
@@ -481,8 +476,8 @@ services:
       # CORS Configuration
       ALLOWED_ORIGINS: "http://localhost:3001,http://localhost:3000,http://dashboard:3000"
       LOG_LEVEL: info
-      JAEGER_ENDPOINT: http://jaeger:14268/api/traces
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      JAEGER_ENDPOINT: ""
+      OTEL_EXPORTER_OTLP_ENDPOINT: ""
     networks:
       - eventflow-network
     labels:
@@ -518,156 +513,6 @@ services:
       - "eventflow.service=dashboard"
       - "eventflow.type=frontend"
 
-  # ===========================================================================
-  # Observability Services
-  # ===========================================================================
-
-  # ---------------------------------------------------------------------------
-  # Prometheus - Metrics collection
-  # ---------------------------------------------------------------------------
-  prometheus:
-    image: prom/prometheus:v2.47.0
-    hostname: prometheus
-    container_name: eventflow-prometheus
-    restart: unless-stopped
-    ports:
-      - "9190:9090"
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-      - '--storage.tsdb.retention.time=15d'
-      - '--web.enable-lifecycle'
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    volumes:
-      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./deploy/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
-      - prometheus-data:/prometheus
-    networks:
-      - eventflow-network
-    labels:
-      - "eventflow.service=prometheus"
-      - "eventflow.type=observability"
-
-  # ---------------------------------------------------------------------------
-  # Grafana - Metrics visualization
-  # ---------------------------------------------------------------------------
-  grafana:
-    image: grafana/grafana:10.2.0
-    hostname: grafana
-    container_name: eventflow-grafana
-    restart: unless-stopped
-    depends_on:
-      - prometheus
-    ports:
-      - "3000:3000"
-    environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_PASSWORD:-admin}"
-      GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_SERVER_ROOT_URL: "http://localhost:3000"
-      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    volumes:
-      - grafana-data:/var/lib/grafana
-      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
-    networks:
-      - eventflow-network
-    labels:
-      - "eventflow.service=grafana"
-      - "eventflow.type=observability"
-
-  # ---------------------------------------------------------------------------
-  # Jaeger - Distributed tracing
-  # ---------------------------------------------------------------------------
-  jaeger:
-    image: jaegertracing/all-in-one:1.51
-    hostname: jaeger
-    container_name: eventflow-jaeger
-    restart: unless-stopped
-    ports:
-      - "5775:5775/udp"
-      - "6831:6831/udp"
-      - "6832:6832/udp"
-      - "5778:5778"
-      - "16686:16686"
-      - "14250:14250"
-      - "14268:14268"
-      - "14269:14269"
-      - "4317:4317"
-      - "4318:4318"
-    environment:
-      COLLECTOR_OTLP_ENABLED: "true"
-      SPAN_STORAGE_TYPE: memory
-      MEMORY_MAX_TRACES: 100000
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:14269/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    networks:
-      - eventflow-network
-    labels:
-      - "eventflow.service=jaeger"
-      - "eventflow.type=observability"
-
-  # ---------------------------------------------------------------------------
-  # Kafka UI - Kafka management interface
-  # ---------------------------------------------------------------------------
-  kafka-ui:
-    image: provectuslabs/kafka-ui:v0.7.1
-    hostname: kafka-ui
-    container_name: eventflow-kafka-ui
-    restart: unless-stopped
-    depends_on:
-      kafka:
-        condition: service_healthy
-    ports:
-      - "8080:8080"
-    environment:
-      KAFKA_CLUSTERS_0_NAME: eventflow
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
-      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
-      DYNAMIC_CONFIG_ENABLED: "true"
-    networks:
-      - eventflow-network
-    labels:
-      - "eventflow.service=kafka-ui"
-      - "eventflow.type=observability"
-
-  # ---------------------------------------------------------------------------
-  # Redis Commander - Redis management interface
-  # ---------------------------------------------------------------------------
-  redis-commander:
-    image: rediscommander/redis-commander:latest
-    hostname: redis-commander
-    container_name: eventflow-redis-commander
-    restart: unless-stopped
-    depends_on:
-      redis:
-        condition: service_healthy
-    ports:
-      - "8081:8081"
-    environment:
-      REDIS_HOSTS: local:redis:6379
-      HTTP_USER: admin
-      HTTP_PASSWORD: "${REDIS_COMMANDER_PASSWORD:-admin}"
-    networks:
-      - eventflow-network
-    labels:
-      - "eventflow.service=redis-commander"
-      - "eventflow.type=observability"
-
 # =============================================================================
 # Networks
 # =============================================================================
@@ -692,9 +537,3 @@ volumes:
     name: eventflow-kafka-data
   redis-data:
     name: eventflow-redis-data
-  prometheus-data:
-    name: eventflow-prometheus-data
-  grafana-data:
-    name: eventflow-grafana-data
-  jaeger-data:
-    name: eventflow-jaeger-data
