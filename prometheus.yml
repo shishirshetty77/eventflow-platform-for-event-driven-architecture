@@ -1,0 +1,79 @@
+# Prometheus configuration
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'microservices-platform'
+
+rule_files:
+  # - "alert_rules.yml"
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Auth Service
+  - job_name: 'auth-service'
+    static_configs:
+      - targets: ['auth:9090']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'auth'
+
+  # Orders Service
+  - job_name: 'orders-service'
+    static_configs:
+      - targets: ['orders:9090']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'orders'
+
+  # Payments Service
+  - job_name: 'payments-service'
+    static_configs:
+      - targets: ['payments:9090']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'payments'
+
+  # Notification Service
+  - job_name: 'notification-service'
+    static_configs:
+      - targets: ['notification:9090']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'notification'
+
+  # Analyzer Service
+  - job_name: 'analyzer-service'
+    static_configs:
+      - targets: ['analyzer:9090']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'analyzer'
+
+  # Alert Engine Service
+  - job_name: 'alert-engine-service'
+    static_configs:
+      - targets: ['alert-engine:9090']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'alert-engine'
+
+  # UI Backend Service
+  - job_name: 'ui-backend-service'
+    static_configs:
+      - targets: ['ui-backend:9090']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'ui-backend'

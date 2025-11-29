@@ -1,0 +1,352 @@
+# Full Application Docker Compose
+# All microservices + infrastructure
+
+version: '3.8'
+
+services:
+  # ============================================
+  # Infrastructure Services
+  # ============================================
+  
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-log:/var/lib/zookeeper/log
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    hostname: kafka
+    container_name: kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+
+  kafka-init:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      "
+      kafka-topics --create --if-not-exists --topic service-metrics --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1
+      kafka-topics --create --if-not-exists --topic service-logs --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1
+      kafka-topics --create --if-not-exists --topic alerts --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1
+      kafka-topics --create --if-not-exists --topic alerts-dlq --bootstrap-server kafka:29092 --partitions 1 --replication-factor 1
+      "
+
+  redis:
+    image: redis:7-alpine
+    hostname: redis
+    container_name: redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis-data:/data
+
+  # ============================================
+  # Application Services
+  # ============================================
+
+  auth:
+    build:
+      context: .
+      dockerfile: services/auth/Dockerfile
+    container_name: auth-service
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8001:8080"
+      - "9101:9090"
+    environment:
+      - ENVIRONMENT=production
+      - SERVICE_NAME=auth
+      - HTTP_PORT=8080
+      - METRICS_PORT=9090
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_METRICS_TOPIC=service-metrics
+      - KAFKA_LOGS_TOPIC=service-logs
+      - LOG_LEVEL=info
+      - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
+    restart: unless-stopped
+
+  orders:
+    build:
+      context: .
+      dockerfile: services/orders/Dockerfile
+    container_name: orders-service
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8002:8080"
+      - "9102:9090"
+    environment:
+      - ENVIRONMENT=production
+      - SERVICE_NAME=orders
+      - HTTP_PORT=8080
+      - METRICS_PORT=9090
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_METRICS_TOPIC=service-metrics
+      - KAFKA_LOGS_TOPIC=service-logs
+      - LOG_LEVEL=info
+      - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
+    restart: unless-stopped
+
+  payments:
+    build:
+      context: .
+      dockerfile: services/payments/Dockerfile
+    container_name: payments-service
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8003:8080"
+      - "9103:9090"
+    environment:
+      - ENVIRONMENT=production
+      - SERVICE_NAME=payments
+      - HTTP_PORT=8080
+      - METRICS_PORT=9090
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_METRICS_TOPIC=service-metrics
+      - KAFKA_LOGS_TOPIC=service-logs
+      - LOG_LEVEL=info
+      - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
+    restart: unless-stopped
+
+  notification:
+    build:
+      context: .
+      dockerfile: services/notification/Dockerfile
+    container_name: notification-service
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8004:8080"
+      - "9104:9090"
+    environment:
+      - ENVIRONMENT=production
+      - SERVICE_NAME=notification
+      - HTTP_PORT=8080
+      - METRICS_PORT=9090
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_METRICS_TOPIC=service-metrics
+      - KAFKA_LOGS_TOPIC=service-logs
+      - LOG_LEVEL=info
+      - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
+    restart: unless-stopped
+
+  analyzer:
+    build:
+      context: .
+      dockerfile: services/analyzer/Dockerfile
+    container_name: analyzer-service
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8005:8080"
+      - "9105:9090"
+    environment:
+      - ENVIRONMENT=production
+      - SERVICE_NAME=analyzer
+      - HTTP_PORT=8080
+      - METRICS_PORT=9090
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_METRICS_TOPIC=service-metrics
+      - KAFKA_ALERTS_TOPIC=alerts
+      - KAFKA_CONSUMER_GROUP=analyzer-group
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=
+      - REDIS_DB=0
+      - LOG_LEVEL=info
+      - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
+    restart: unless-stopped
+
+  alert-engine:
+    build:
+      context: .
+      dockerfile: services/alert-engine/Dockerfile
+    container_name: alert-engine-service
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8006:8080"
+      - "9106:9090"
+    environment:
+      - ENVIRONMENT=production
+      - SERVICE_NAME=alert-engine
+      - HTTP_PORT=8080
+      - METRICS_PORT=9090
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_ALERTS_TOPIC=alerts
+      - KAFKA_DLQ_TOPIC=alerts-dlq
+      - KAFKA_CONSUMER_GROUP=alert-engine-group
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=
+      - REDIS_DB=1
+      - LOG_LEVEL=info
+      - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
+      # Configure dispatchers as needed
+      - SLACK_WEBHOOK_URL=
+      - EMAIL_SMTP_HOST=
+      - WEBHOOK_URLS=
+    restart: unless-stopped
+
+  ui-backend:
+    build:
+      context: .
+      dockerfile: services/ui-backend/Dockerfile
+    container_name: ui-backend-service
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8007:8080"
+      - "9107:9090"
+    environment:
+      - ENVIRONMENT=production
+      - SERVICE_NAME=ui-backend
+      - HTTP_ADDR=:8080
+      - METRICS_ADDR=:9090
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_METRICS_TOPIC=service-metrics
+      - KAFKA_ALERTS_TOPIC=alerts
+      - KAFKA_CONSUMER_GROUP=ui-backend-group
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=
+      - REDIS_DB=2
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      - JWT_EXPIRATION=24
+      - ALLOWED_ORIGINS=http://localhost:3001,http://dashboard:3000
+      - LOG_LEVEL=info
+      - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: dashboard
+    depends_on:
+      - ui-backend
+    ports:
+      - "3001:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8007
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8007/ws
+    restart: unless-stopped
+
+  # ============================================
+  # Observability Services
+  # ============================================
+
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: grafana
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.50
+    container_name: jaeger
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+      - "4317:4317"
+      - "4318:4318"
+    environment:
+      COLLECTOR_OTLP_ENABLED: true
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+
+volumes:
+  zookeeper-data:
+  zookeeper-log:
+  kafka-data:
+  redis-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  default:
+    name: microservices-network

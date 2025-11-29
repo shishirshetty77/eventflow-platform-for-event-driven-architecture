@@ -1,0 +1,12 @@
+go 1.21
+
+use (
+    ./pkg/shared
+    ./services/auth
+    ./services/orders
+    ./services/payments
+    ./services/notification
+    ./services/analyzer
+    ./services/alert-engine
+    ./services/ui-backend
+)

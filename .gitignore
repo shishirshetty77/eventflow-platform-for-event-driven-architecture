@@ -1,0 +1,85 @@
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage/
+
+# Dependency directories
+vendor/
+
+# Go workspace
+go.work.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# Node.js (Dashboard)
+dashboard/node_modules/
+dashboard/.next/
+dashboard/out/
+dashboard/.pnp/
+dashboard/.pnp.js
+dashboard/npm-debug.log*
+dashboard/yarn-debug.log*
+dashboard/yarn-error.log*
+
+# Build artifacts
+dist/
+build/
+release/
+
+# Docker
+docker-compose.override.yml
+
+# Temporary files
+tmp/
+temp/
+
+# Secrets (never commit these!)
+*.pem
+*.key
+secrets/
+
+# Database files
+*.db
+*.sqlite
+
+# Redis dump
+dump.rdb
+
+# Kafka data
+kafka-data/
+zookeeper-data/
+
+# Grafana data
+grafana-data/
+
+# Prometheus data
+prometheus-data/
