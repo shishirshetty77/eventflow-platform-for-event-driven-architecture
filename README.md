@@ -2,6 +2,12 @@
 
 A production-grade distributed event-driven microservices system built entirely in Go with a Next.js dashboard for real-time monitoring and alerting.
 
+## 📸 Dashboard Preview
+
+![EventFlow Dashboard](images/image1.png)
+
+*Real-time monitoring dashboard showing service health, metrics, and alerts*
+
 ## 🏗 Architecture
 
 ```
@@ -306,6 +312,11 @@ type Dispatcher interface {
     HealthCheck(ctx context.Context) error
 }
 ```
+
+## 📚 Additional Documentation
+
+- [Load Simulation & Metrics Generation](docs/LOAD_SIMULATION.md) - Learn how the platform generates simulated metrics and load
+- [Docker Deployment](DOCKER.md) - Detailed Docker deployment instructions
 
 ## 📜 License
 

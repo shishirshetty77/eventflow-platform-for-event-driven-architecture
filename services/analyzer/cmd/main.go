@@ -31,6 +31,7 @@ func main() {
 		Level:       cfg.LogLevel,
 		Development: cfg.Development,
 		ServiceName: cfg.ServiceName,
+		OutputPaths: []string{"stdout"},
 	}
 	logger, err := logging.NewLogger(logConfig)
 	if err != nil {

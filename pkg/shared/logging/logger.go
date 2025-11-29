@@ -84,9 +84,14 @@ func NewLogger(cfg *Config) (*Logger, error) {
 		encoder = zapcore.NewJSONEncoder(encoderConfig)
 	}
 
-	// Build output writers
+	// Build output writers - default to stdout if no paths specified
+	outputPaths := cfg.OutputPaths
+	if len(outputPaths) == 0 {
+		outputPaths = []string{"stdout"}
+	}
+
 	var writers []zapcore.WriteSyncer
-	for _, path := range cfg.OutputPaths {
+	for _, path := range outputPaths {
 		switch path {
 		case "stdout":
 			writers = append(writers, zapcore.AddSync(os.Stdout))

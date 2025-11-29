@@ -100,60 +100,24 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-    entrypoint: ["/bin/bash", "-c"]
-    command: |
-      "
-      echo '=========================================='
-      echo 'Creating Kafka topics...'
-      echo '=========================================='
-      
-      # Wait for Kafka to be fully ready
-      sleep 5
-      
-      # Create service-metrics topic
-      kafka-topics --create --if-not-exists \
-        --topic service-metrics \
-        --bootstrap-server kafka:29092 \
-        --partitions 3 \
-        --replication-factor 1 \
-        --config retention.ms=604800000 \
-        --config cleanup.policy=delete
-      
-      # Create service-logs topic
-      kafka-topics --create --if-not-exists \
-        --topic service-logs \
-        --bootstrap-server kafka:29092 \
-        --partitions 3 \
-        --replication-factor 1 \
-        --config retention.ms=604800000 \
-        --config cleanup.policy=delete
-      
-      # Create alerts topic
-      kafka-topics --create --if-not-exists \
-        --topic alerts \
-        --bootstrap-server kafka:29092 \
-        --partitions 3 \
-        --replication-factor 1 \
-        --config retention.ms=604800000 \
-        --config cleanup.policy=delete
-      
-      # Create alerts-dlq (dead letter queue) topic
-      kafka-topics --create --if-not-exists \
-        --topic alerts-dlq \
-        --bootstrap-server kafka:29092 \
-        --partitions 1 \
-        --replication-factor 1 \
-        --config retention.ms=2592000000 \
-        --config cleanup.policy=delete
-      
-      echo ''
-      echo '=========================================='
-      echo 'Topics created successfully:'
-      echo '=========================================='
-      kafka-topics --list --bootstrap-server kafka:29092
-      echo ''
-      echo 'Topic details:'
-      kafka-topics --describe --bootstrap-server kafka:29092
+    command: >
+      bash -c "
+      echo '==========================================';
+      echo 'Creating Kafka topics...';
+      echo '==========================================';
+      sleep 5;
+      kafka-topics --create --if-not-exists --topic service-metrics --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --config retention.ms=604800000 --config cleanup.policy=delete;
+      kafka-topics --create --if-not-exists --topic service-logs --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --config retention.ms=604800000 --config cleanup.policy=delete;
+      kafka-topics --create --if-not-exists --topic alerts --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --config retention.ms=604800000 --config cleanup.policy=delete;
+      kafka-topics --create --if-not-exists --topic alerts-dlq --bootstrap-server kafka:29092 --partitions 1 --replication-factor 1 --config retention.ms=2592000000 --config cleanup.policy=delete;
+      echo '';
+      echo '==========================================';
+      echo 'Topics created successfully:';
+      echo '==========================================';
+      kafka-topics --list --bootstrap-server kafka:29092;
+      echo '';
+      echo 'Topic details:';
+      kafka-topics --describe --bootstrap-server kafka:29092;
       "
     networks:
       - eventflow-network
@@ -408,6 +372,12 @@ services:
     ports:
       - "8006:8080"
       - "9106:9090"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     environment:
       ENVIRONMENT: production
       SERVICE_NAME: alert-engine
@@ -474,7 +444,7 @@ services:
       KAFKA_CONSUMER_GROUP: ui-backend-group
       REDIS_ADDR: redis:6379
       REDIS_PASSWORD: ""
-      REDIS_DB: "2"
+      REDIS_DB: "0"
       # JWT Configuration (CHANGE IN PRODUCTION!)
       JWT_SECRET: "${JWT_SECRET:-eventflow-super-secret-key-change-me-in-production}"
       JWT_EXPIRATION: "24"
@@ -508,6 +478,12 @@ services:
         condition: service_healthy
     ports:
       - "3001:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     environment:
       NODE_ENV: production
       NEXT_PUBLIC_API_URL: http://localhost:8007

@@ -407,17 +407,26 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 // AuthMiddleware validates JWT tokens.
 func (h *Handler) AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var tokenString string
+
+		// First check Authorization header
 		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			writeError(w, http.StatusUnauthorized, "authorization header required")
-			return
+		if authHeader != "" {
+			if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+				tokenString = authHeader[7:]
+			} else {
+				writeError(w, http.StatusUnauthorized, "invalid authorization header format")
+				return
+			}
 		}
 
-		tokenString := ""
-		if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
-			tokenString = authHeader[7:]
-		} else {
-			writeError(w, http.StatusUnauthorized, "invalid authorization header format")
+		// For WebSocket connections, also check query parameter
+		if tokenString == "" {
+			tokenString = r.URL.Query().Get("token")
+		}
+
+		if tokenString == "" {
+			writeError(w, http.StatusUnauthorized, "authorization required")
 			return
 		}
 
