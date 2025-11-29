@@ -1,0 +1,212 @@
+# golangci-lint configuration
+# See: https://golangci-lint.run/usage/configuration/
+
+run:
+  # Timeout for analysis
+  timeout: 5m
+  
+  # Include test files
+  tests: true
+  
+  # Skip directories
+  skip-dirs:
+    - vendor
+    - node_modules
+    - .git
+  
+  # Skip files
+  skip-files:
+    - ".*_test\\.go$"
+
+  # Go version
+  go: "1.21"
+
+# Output configuration
+output:
+  # Format: colored-line-number|line-number|json|tab|checkstyle|code-climate|junit-xml|github-actions
+  formats:
+    - format: colored-line-number
+  
+  # Print lines of code with issue
+  print-issued-lines: true
+  
+  # Print linter name
+  print-linter-name: true
+  
+  # Sort results by: filepath, line and column
+  sort-results: true
+
+# Linters configuration
+linters:
+  enable:
+    # Default linters
+    - errcheck      # Check for unchecked errors
+    - gosimple      # Simplify code
+    - govet         # Examine Go source code
+    - ineffassign   # Detect ineffectual assignments
+    - staticcheck   # Static analysis
+    - unused        # Check for unused code
+    
+    # Additional linters
+    - bodyclose     # Check HTTP response body is closed
+    - dogsled       # Check for too many blank identifiers
+    - dupl          # Check for duplicate code
+    - exportloopref # Check for pointers to loop variables
+    - gochecknoinits # Check for init functions
+    - goconst       # Find repeated strings that could be constants
+    - gocritic      # Opinionated linter
+    - gocyclo       # Check cyclomatic complexity
+    - gofmt         # Check code is formatted
+    - goimports     # Check imports are formatted
+    - goprintffuncname # Check printf-like functions
+    - gosec         # Security checks
+    - misspell      # Check for misspelled English words
+    - nakedret      # Check for naked returns
+    - noctx         # Check for HTTP requests without context
+    - nolintlint    # Check for ill-formed nolint directives
+    - prealloc      # Check for slice preallocation
+    - revive        # Replacement for golint
+    - unconvert     # Remove unnecessary type conversions
+    - unparam       # Check for unused function parameters
+    - whitespace    # Check for unnecessary whitespace
+
+  disable:
+    - exhaustive    # Too strict for this project
+    - funlen        # Function length - disabled for flexibility
+    - gochecknoglobals # Global variables are OK in this project
+    - godot         # Comments don't need periods
+    - godox         # TODO/FIXME comments are OK
+    - goerr113      # Too strict error wrapping
+    - gomnd         # Magic numbers - too many false positives
+    - lll           # Line length - handled by editor
+    - nlreturn      # Too strict return formatting
+    - wsl           # Whitespace linter - too strict
+
+linters-settings:
+  # errcheck settings
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+  # govet settings
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment # Struct field alignment - too noisy
+
+  # gocyclo settings
+  gocyclo:
+    min-complexity: 20
+
+  # dupl settings
+  dupl:
+    threshold: 150
+
+  # goconst settings
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+
+  # misspell settings
+  misspell:
+    locale: US
+
+  # gocritic settings
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+    disabled-checks:
+      - hugeParam
+      - rangeValCopy
+
+  # gosec settings
+  gosec:
+    excludes:
+      - G104 # Audit errors not checked - too many false positives
+      - G304 # File path provided as taint input - acceptable in this context
+
+  # revive settings
+  revive:
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: exported
+        disabled: true  # Too noisy
+      - name: increment-decrement
+      - name: indent-error-flow
+      - name: package-comments
+        disabled: true  # Not all packages need comments
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: unexported-return
+      - name: var-declaration
+      - name: var-naming
+
+  # unparam settings
+  unparam:
+    check-exported: false
+
+  # nakedret settings
+  nakedret:
+    max-func-lines: 30
+
+  # prealloc settings
+  prealloc:
+    simple: true
+    range-loops: true
+    for-loops: false
+
+  # goimports settings
+  goimports:
+    local-prefixes: github.com/microservices-platform
+
+# Issues configuration
+issues:
+  # Maximum issues count per linter
+  max-issues-per-linter: 50
+  
+  # Maximum same issues count
+  max-same-issues: 3
+  
+  # Show only new issues
+  new: false
+  
+  # Exclude certain issues
+  exclude-rules:
+    # Exclude some linters from running on tests files
+    - path: _test\.go
+      linters:
+        - dupl
+        - gosec
+        - gocritic
+    
+    # Exclude known issues in generated files
+    - path: ".*\\.pb\\.go"
+      linters:
+        - all
+    
+    # Exclude lll issues for long lines with go:generate
+    - linters:
+        - lll
+      source: "^//go:generate "
+
+severity:
+  # Set default severity
+  default-severity: warning
+  
+  # Per-linter severity
+  rules:
+    - linters:
+        - gosec
+      severity: error
+    - linters:
+        - govet
+      severity: error
