@@ -1,39 +1,85 @@
-# Multi-stage build for Auth service
+# =============================================================================
+# Auth Service - Production Dockerfile
+# Multi-stage build with security best practices
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: Builder
+# -----------------------------------------------------------------------------
 FROM golang:1.21-alpine AS builder
 
-WORKDIR /app
+# Install build dependencies
+RUN apk add --no-cache \
+    git \
+    ca-certificates \
+    tzdata \
+    && update-ca-certificates
 
-# Install git and ca-certificates
-RUN apk add --no-cache git ca-certificates
+# Create appuser for the final image
+RUN adduser -D -g '' -s /sbin/nologin -u 10001 appuser
 
-# Copy go workspace files
+WORKDIR /build
+
+# Copy go workspace and module files first (better layer caching)
 COPY go.work go.work.sum ./
 COPY pkg/shared/go.mod pkg/shared/go.sum ./pkg/shared/
 COPY services/auth/go.mod services/auth/go.sum ./services/auth/
 
 # Download dependencies
-RUN cd services/auth && go mod download
+WORKDIR /build/services/auth
+RUN go mod download && go mod verify
 
 # Copy source code
+WORKDIR /build
 COPY pkg/shared ./pkg/shared
 COPY services/auth ./services/auth
 
-# Build
-RUN cd services/auth && CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /auth ./cmd/...
+# Build the binary with optimizations
+WORKDIR /build/services/auth
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags='-w -s -extldflags "-static"' \
+    -a -installsuffix cgo \
+    -o /app/auth \
+    ./cmd/...
 
-# Final image
-FROM alpine:3.18
+# -----------------------------------------------------------------------------
+# Stage 2: Production Runtime
+# -----------------------------------------------------------------------------
+FROM alpine:3.19
 
-RUN apk add --no-cache ca-certificates tzdata
+# Install runtime dependencies
+RUN apk add --no-cache \
+    ca-certificates \
+    tzdata \
+    curl \
+    && rm -rf /var/cache/apk/*
 
+# Import user and group from builder
+COPY --from=builder /etc/passwd /etc/passwd
+COPY --from=builder /etc/group /etc/group
+
+# Set working directory
 WORKDIR /app
 
-COPY --from=builder /auth .
+# Copy the binary
+COPY --from=builder /app/auth .
 
-# Create non-root user
-RUN adduser -D -g '' appuser
-USER appuser
+# Use non-root user
+USER appuser:appuser
 
+# Expose ports (HTTP and Metrics)
 EXPOSE 8080 9090
 
-CMD ["./auth"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Set default environment variables
+ENV ENVIRONMENT=production \
+    SERVICE_NAME=auth \
+    HTTP_PORT=8080 \
+    METRICS_PORT=9090 \
+    LOG_LEVEL=info
+
+# Run the binary
+ENTRYPOINT ["./auth"]

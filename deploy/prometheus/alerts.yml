@@ -1,0 +1,78 @@
+# Prometheus alerting rules for EventFlow Platform
+
+groups:
+  - name: eventflow-service-alerts
+    rules:
+      # High CPU usage
+      - alert: HighCPUUsage
+        expr: service_cpu_usage > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.service }}"
+          description: "CPU usage is {{ $value }}% on service {{ $labels.service }}"
+
+      # Critical CPU usage
+      - alert: CriticalCPUUsage
+        expr: service_cpu_usage > 95
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical CPU usage on {{ $labels.service }}"
+          description: "CPU usage is {{ $value }}% on service {{ $labels.service }}"
+
+      # High memory usage
+      - alert: HighMemoryUsage
+        expr: service_memory_usage > 85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.service }}"
+          description: "Memory usage is {{ $value }}% on service {{ $labels.service }}"
+
+      # High error rate
+      - alert: HighErrorRate
+        expr: rate(service_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate on {{ $labels.service }}"
+          description: "Error rate is {{ $value }} errors/sec on service {{ $labels.service }}"
+
+      # Service down
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.service }} is down"
+          description: "Service {{ $labels.service }} has been down for more than 1 minute"
+
+  - name: eventflow-kafka-alerts
+    rules:
+      # Kafka consumer lag
+      - alert: KafkaConsumerLag
+        expr: kafka_consumer_lag > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Kafka consumer lag detected"
+          description: "Consumer group {{ $labels.consumer_group }} has lag of {{ $value }}"
+
+  - name: eventflow-redis-alerts
+    rules:
+      # Redis connection issues
+      - alert: RedisConnectionFailed
+        expr: redis_connected_clients == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No Redis connections"
+          description: "Redis has no connected clients"

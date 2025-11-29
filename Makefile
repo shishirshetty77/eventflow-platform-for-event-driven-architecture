@@ -1,7 +1,11 @@
-# Microservices Platform Makefile
+# =============================================================================
+# EventFlow Platform Makefile
 # Production-grade distributed event-driven microservices system
+# =============================================================================
 
 .PHONY: all build test clean run-all stop-all docker-build docker-up docker-down \
+        docker-restart docker-logs docker-ps docker-clean docker-clean-all \
+        up down restart logs ps build-images status health seed-redis verify-kafka \
         lint fmt tidy deps help
 
 # Go parameters
@@ -36,34 +40,63 @@ all: deps tidy build test
 
 # Help
 help:
-	@echo "$(BLUE)Microservices Platform$(NC)"
+	@echo "$(BLUE)═══════════════════════════════════════════════════════════════$(NC)"
+	@echo "$(BLUE)         EventFlow Platform - Command Reference$(NC)"
+	@echo "$(BLUE)═══════════════════════════════════════════════════════════════$(NC)"
 	@echo ""
-	@echo "$(GREEN)Available targets:$(NC)"
-	@echo "  $(YELLOW)all$(NC)              - Run deps, tidy, build, and test"
-	@echo "  $(YELLOW)build$(NC)            - Build all services"
-	@echo "  $(YELLOW)build-<service>$(NC)  - Build specific service (auth, orders, payments, notification, analyzer, alert-engine, ui-backend)"
-	@echo "  $(YELLOW)test$(NC)             - Run all tests"
-	@echo "  $(YELLOW)test-coverage$(NC)    - Run tests with coverage"
-	@echo "  $(YELLOW)lint$(NC)             - Run linter"
-	@echo "  $(YELLOW)fmt$(NC)              - Format code"
-	@echo "  $(YELLOW)tidy$(NC)             - Tidy go modules"
-	@echo "  $(YELLOW)deps$(NC)             - Download dependencies"
-	@echo "  $(YELLOW)clean$(NC)            - Clean build artifacts"
+	@echo "$(GREEN)🐳 Docker Commands (Primary):$(NC)"
+	@echo "  $(YELLOW)make up$(NC)              - Start entire platform (docker-compose up --build)"
+	@echo "  $(YELLOW)make down$(NC)            - Stop entire platform"
+	@echo "  $(YELLOW)make restart$(NC)         - Restart all services"
+	@echo "  $(YELLOW)make logs$(NC)            - View logs from all services (follow)"
+	@echo "  $(YELLOW)make logs-<service>$(NC)  - View logs for specific service"
+	@echo "  $(YELLOW)make ps$(NC)              - Show running containers"
+	@echo "  $(YELLOW)make status$(NC)          - Show detailed container status"
+	@echo "  $(YELLOW)make health$(NC)          - Run health check on all services"
 	@echo ""
-	@echo "$(GREEN)Run targets:$(NC)"
-	@echo "  $(YELLOW)run-<service>$(NC)    - Run specific service"
-	@echo "  $(YELLOW)run-all$(NC)          - Run all services (requires tmux)"
-	@echo "  $(YELLOW)stop-all$(NC)         - Stop all services"
+	@echo "$(GREEN)🔧 Docker Build Commands:$(NC)"
+	@echo "  $(YELLOW)make build-images$(NC)    - Build all Docker images"
+	@echo "  $(YELLOW)make rebuild$(NC)         - Force rebuild all images (no cache)"
+	@echo "  $(YELLOW)make pull$(NC)            - Pull latest base images"
 	@echo ""
-	@echo "$(GREEN)Docker targets:$(NC)"
-	@echo "  $(YELLOW)docker-build$(NC)     - Build all Docker images"
-	@echo "  $(YELLOW)docker-up$(NC)        - Start all services with docker-compose"
-	@echo "  $(YELLOW)docker-down$(NC)      - Stop all services"
-	@echo "  $(YELLOW)docker-logs$(NC)      - View logs from all services"
+	@echo "$(GREEN)🧹 Docker Cleanup Commands:$(NC)"
+	@echo "  $(YELLOW)make docker-clean$(NC)    - Stop containers and remove network"
+	@echo "  $(YELLOW)make docker-clean-all$(NC)- Full cleanup (volumes + images)"
+	@echo "  $(YELLOW)make docker-prune$(NC)    - Remove dangling images/containers"
 	@echo ""
-	@echo "$(GREEN)Infrastructure targets:$(NC)"
-	@echo "  $(YELLOW)infra-up$(NC)         - Start infrastructure (Kafka, Redis, etc.)"
-	@echo "  $(YELLOW)infra-down$(NC)       - Stop infrastructure"
+	@echo "$(GREEN)🔌 Service Commands:$(NC)"
+	@echo "  $(YELLOW)make restart-<svc>$(NC)   - Restart specific service"
+	@echo "  $(YELLOW)make shell-<svc>$(NC)     - Open shell in service container"
+	@echo "  Services: auth, orders, payments, notification, analyzer, alert-engine, ui-backend, dashboard"
+	@echo ""
+	@echo "$(GREEN)⚙️  Utility Commands:$(NC)"
+	@echo "  $(YELLOW)make seed-redis$(NC)      - Seed Redis with default threshold rules"
+	@echo "  $(YELLOW)make verify-kafka$(NC)    - Verify Kafka topics are created"
+	@echo "  $(YELLOW)make wait$(NC)            - Wait for all services to be ready"
+	@echo ""
+	@echo "$(GREEN)📦 Local Development:$(NC)"
+	@echo "  $(YELLOW)make build$(NC)           - Build all services locally"
+	@echo "  $(YELLOW)make test$(NC)            - Run all tests"
+	@echo "  $(YELLOW)make test-coverage$(NC)   - Run tests with coverage"
+	@echo "  $(YELLOW)make lint$(NC)            - Run linter"
+	@echo "  $(YELLOW)make fmt$(NC)             - Format code"
+	@echo "  $(YELLOW)make deps$(NC)            - Download dependencies"
+	@echo "  $(YELLOW)make tidy$(NC)            - Tidy go modules"
+	@echo ""
+	@echo "$(GREEN)🖥️  Dashboard Commands:$(NC)"
+	@echo "  $(YELLOW)make dashboard-install$(NC)  - Install dashboard dependencies"
+	@echo "  $(YELLOW)make dashboard-dev$(NC)      - Run dashboard in dev mode"
+	@echo "  $(YELLOW)make dashboard-build$(NC)    - Build dashboard for production"
+	@echo ""
+	@echo "$(BLUE)═══════════════════════════════════════════════════════════════$(NC)"
+	@echo "$(GREEN)Quick Start:$(NC) make up"
+	@echo "$(GREEN)Access:$(NC)"
+	@echo "  Dashboard:  http://localhost:3001"
+	@echo "  Grafana:    http://localhost:3000 (admin/admin)"
+	@echo "  Kafka UI:   http://localhost:8080"
+	@echo "  Prometheus: http://localhost:9090"
+	@echo "  Jaeger:     http://localhost:16686"
+	@echo "$(BLUE)═══════════════════════════════════════════════════════════════$(NC)"
 
 # Dependencies
 deps:
@@ -308,3 +341,268 @@ release: verify build
 	done
 	@tar -czvf release/microservices-platform.tar.gz -C release $(SERVICES)
 	@echo "$(GREEN)Release created at release/microservices-platform.tar.gz$(NC)"
+
+# =============================================================================
+# PRIMARY DOCKER TARGETS (Recommended for running the platform)
+# =============================================================================
+
+# Start the entire platform (main command)
+up:
+	@echo "$(BLUE)═══════════════════════════════════════════════════════════════$(NC)"
+	@echo "$(BLUE)       Starting EventFlow Platform$(NC)"
+	@echo "$(BLUE)═══════════════════════════════════════════════════════════════$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Building and starting all services...$(NC)"
+	$(DOCKER_COMPOSE) up --build -d
+	@echo ""
+	@echo "$(GREEN)Platform started successfully!$(NC)"
+	@echo ""
+	@echo "$(BLUE)Services are starting up. Run 'make health' to check status.$(NC)"
+	@echo ""
+	@echo "$(GREEN)Access Points:$(NC)"
+	@echo "  Dashboard:     http://localhost:3001"
+	@echo "  UI Backend:    http://localhost:8007"
+	@echo "  Kafka UI:      http://localhost:8080"
+	@echo "  Redis UI:      http://localhost:8081"
+	@echo "  Grafana:       http://localhost:3000 (admin/admin)"
+	@echo "  Prometheus:    http://localhost:9090"
+	@echo "  Jaeger:        http://localhost:16686"
+	@echo ""
+	@echo "$(YELLOW)Tip: Run 'make logs' to follow service logs$(NC)"
+
+# Stop the entire platform
+down:
+	@echo "$(BLUE)Stopping EventFlow Platform...$(NC)"
+	$(DOCKER_COMPOSE) down
+	@echo "$(GREEN)Platform stopped$(NC)"
+
+# Restart all services
+restart:
+	@echo "$(BLUE)Restarting EventFlow Platform...$(NC)"
+	$(DOCKER_COMPOSE) restart
+	@echo "$(GREEN)Platform restarted$(NC)"
+
+# View logs (follow mode)
+logs:
+	$(DOCKER_COMPOSE) logs -f
+
+# Show running containers
+ps:
+	@echo "$(BLUE)Running Containers:$(NC)"
+	$(DOCKER_COMPOSE) ps
+
+# Detailed status
+status:
+	@echo "$(BLUE)═══════════════════════════════════════════════════════════════$(NC)"
+	@echo "$(BLUE)       EventFlow Platform Status$(NC)"
+	@echo "$(BLUE)═══════════════════════════════════════════════════════════════$(NC)"
+	@echo ""
+	@docker ps --filter "name=eventflow-" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "No containers running"
+	@echo ""
+
+# Health check
+health:
+	@chmod +x ./deploy/local/health-check.sh
+	@./deploy/local/health-check.sh
+
+# Wait for services
+wait:
+	@chmod +x ./deploy/local/wait-for-services.sh
+	@./deploy/local/wait-for-services.sh
+
+# =============================================================================
+# DOCKER BUILD TARGETS
+# =============================================================================
+
+# Build all Docker images
+build-images:
+	@echo "$(BLUE)Building Docker images...$(NC)"
+	$(DOCKER_COMPOSE) build
+	@echo "$(GREEN)Docker images built$(NC)"
+
+# Force rebuild all images (no cache)
+rebuild:
+	@echo "$(BLUE)Rebuilding Docker images (no cache)...$(NC)"
+	$(DOCKER_COMPOSE) build --no-cache
+	@echo "$(GREEN)Docker images rebuilt$(NC)"
+
+# Pull latest base images
+pull:
+	@echo "$(BLUE)Pulling latest base images...$(NC)"
+	$(DOCKER) pull golang:1.21-alpine
+	$(DOCKER) pull alpine:3.19
+	$(DOCKER) pull node:20-alpine
+	$(DOCKER) pull confluentinc/cp-zookeeper:7.5.0
+	$(DOCKER) pull confluentinc/cp-kafka:7.5.0
+	$(DOCKER) pull redis:7.2-alpine
+	$(DOCKER) pull prom/prometheus:v2.47.0
+	$(DOCKER) pull grafana/grafana:10.2.0
+	$(DOCKER) pull jaegertracing/all-in-one:1.51
+	@echo "$(GREEN)Base images pulled$(NC)"
+
+# =============================================================================
+# DOCKER CLEANUP TARGETS
+# =============================================================================
+
+# Stop and remove containers/network
+docker-clean:
+	@echo "$(BLUE)Cleaning up containers...$(NC)"
+	$(DOCKER_COMPOSE) down --remove-orphans
+	@echo "$(GREEN)Cleanup complete$(NC)"
+
+# Full cleanup including volumes and images
+docker-clean-all:
+	@chmod +x ./deploy/local/cleanup.sh
+	@./deploy/local/cleanup.sh --all --force
+
+# Prune dangling resources
+docker-prune:
+	@echo "$(BLUE)Pruning unused Docker resources...$(NC)"
+	$(DOCKER) system prune -f
+	@echo "$(GREEN)Pruning complete$(NC)"
+
+# =============================================================================
+# SERVICE-SPECIFIC DOCKER TARGETS
+# =============================================================================
+
+# Restart individual services
+restart-auth:
+	$(DOCKER_COMPOSE) restart auth
+
+restart-orders:
+	$(DOCKER_COMPOSE) restart orders
+
+restart-payments:
+	$(DOCKER_COMPOSE) restart payments
+
+restart-notification:
+	$(DOCKER_COMPOSE) restart notification
+
+restart-analyzer:
+	$(DOCKER_COMPOSE) restart analyzer
+
+restart-alert-engine:
+	$(DOCKER_COMPOSE) restart alert-engine
+
+restart-ui-backend:
+	$(DOCKER_COMPOSE) restart ui-backend
+
+restart-dashboard:
+	$(DOCKER_COMPOSE) restart dashboard
+
+# View individual service logs
+logs-auth:
+	$(DOCKER_COMPOSE) logs -f auth
+
+logs-orders:
+	$(DOCKER_COMPOSE) logs -f orders
+
+logs-payments:
+	$(DOCKER_COMPOSE) logs -f payments
+
+logs-notification:
+	$(DOCKER_COMPOSE) logs -f notification
+
+logs-analyzer:
+	$(DOCKER_COMPOSE) logs -f analyzer
+
+logs-alert-engine:
+	$(DOCKER_COMPOSE) logs -f alert-engine
+
+logs-ui-backend:
+	$(DOCKER_COMPOSE) logs -f ui-backend
+
+logs-dashboard:
+	$(DOCKER_COMPOSE) logs -f dashboard
+
+logs-kafka:
+	$(DOCKER_COMPOSE) logs -f kafka
+
+logs-redis:
+	$(DOCKER_COMPOSE) logs -f redis
+
+# Shell into containers
+shell-auth:
+	$(DOCKER_COMPOSE) exec auth sh
+
+shell-orders:
+	$(DOCKER_COMPOSE) exec orders sh
+
+shell-payments:
+	$(DOCKER_COMPOSE) exec payments sh
+
+shell-notification:
+	$(DOCKER_COMPOSE) exec notification sh
+
+shell-analyzer:
+	$(DOCKER_COMPOSE) exec analyzer sh
+
+shell-alert-engine:
+	$(DOCKER_COMPOSE) exec alert-engine sh
+
+shell-ui-backend:
+	$(DOCKER_COMPOSE) exec ui-backend sh
+
+shell-dashboard:
+	$(DOCKER_COMPOSE) exec dashboard sh
+
+shell-kafka:
+	$(DOCKER_COMPOSE) exec kafka bash
+
+shell-redis:
+	$(DOCKER_COMPOSE) exec redis sh
+
+# =============================================================================
+# UTILITY TARGETS
+# =============================================================================
+
+# Seed Redis with default threshold rules
+seed-redis:
+	@echo "$(BLUE)Seeding Redis with default threshold rules...$(NC)"
+	@chmod +x ./deploy/local/seed-redis.sh
+	@./deploy/local/seed-redis.sh
+	@echo "$(GREEN)Redis seeded$(NC)"
+
+# Verify Kafka topics
+verify-kafka:
+	@echo "$(BLUE)Verifying Kafka topics...$(NC)"
+	@chmod +x ./deploy/local/verify-kafka.sh
+	@./deploy/local/verify-kafka.sh
+	@echo "$(GREEN)Kafka verified$(NC)"
+
+# Create Kafka topics manually
+create-topics:
+	@echo "$(BLUE)Creating Kafka topics...$(NC)"
+	docker exec eventflow-kafka kafka-topics --create --if-not-exists --topic service-metrics --bootstrap-server localhost:9092 --partitions 3 --replication-factor 1
+	docker exec eventflow-kafka kafka-topics --create --if-not-exists --topic service-logs --bootstrap-server localhost:9092 --partitions 3 --replication-factor 1
+	docker exec eventflow-kafka kafka-topics --create --if-not-exists --topic alerts --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
+	docker exec eventflow-kafka kafka-topics --create --if-not-exists --topic alerts-dlq --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
+	@echo "$(GREEN)Kafka topics created$(NC)"
+
+# List Kafka topics
+list-topics:
+	docker exec eventflow-kafka kafka-topics --list --bootstrap-server localhost:9092
+
+# Open URLs in browser (macOS)
+open-dashboard:
+	open http://localhost:3001
+
+open-grafana:
+	open http://localhost:3000
+
+open-kafka-ui:
+	open http://localhost:8080
+
+open-prometheus:
+	open http://localhost:9090
+
+open-jaeger:
+	open http://localhost:16686
+
+open-all:
+	@echo "$(BLUE)Opening all UIs in browser...$(NC)"
+	open http://localhost:3001
+	open http://localhost:3000
+	open http://localhost:8080
+	open http://localhost:9090
+	open http://localhost:16686

@@ -319,6 +319,4 @@ MIT License - See LICENSE file for details.
 4. Push to the branch
 5. Create a Pull Request
 
-## 📞 Support
 
-For questions or issues, please open a GitHub issue.

@@ -1,32 +1,70 @@
-# Multi-stage build for Payments service
+# =============================================================================
+# Payments Service - Production Dockerfile
+# Multi-stage build with security best practices
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: Builder
+# -----------------------------------------------------------------------------
 FROM golang:1.21-alpine AS builder
 
-WORKDIR /app
+RUN apk add --no-cache \
+    git \
+    ca-certificates \
+    tzdata \
+    && update-ca-certificates
 
-RUN apk add --no-cache git ca-certificates
+RUN adduser -D -g '' -s /sbin/nologin -u 10001 appuser
+
+WORKDIR /build
 
 COPY go.work go.work.sum ./
 COPY pkg/shared/go.mod pkg/shared/go.sum ./pkg/shared/
 COPY services/payments/go.mod services/payments/go.sum ./services/payments/
 
-RUN cd services/payments && go mod download
+WORKDIR /build/services/payments
+RUN go mod download && go mod verify
 
+WORKDIR /build
 COPY pkg/shared ./pkg/shared
 COPY services/payments ./services/payments
 
-RUN cd services/payments && CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /payments ./cmd/...
+WORKDIR /build/services/payments
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags='-w -s -extldflags "-static"' \
+    -a -installsuffix cgo \
+    -o /app/payments \
+    ./cmd/...
 
-FROM alpine:3.18
+# -----------------------------------------------------------------------------
+# Stage 2: Production Runtime
+# -----------------------------------------------------------------------------
+FROM alpine:3.19
 
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk add --no-cache \
+    ca-certificates \
+    tzdata \
+    curl \
+    && rm -rf /var/cache/apk/*
+
+COPY --from=builder /etc/passwd /etc/passwd
+COPY --from=builder /etc/group /etc/group
 
 WORKDIR /app
 
-COPY --from=builder /payments .
+COPY --from=builder /app/payments .
 
-RUN adduser -D -g '' appuser
-USER appuser
+USER appuser:appuser
 
 EXPOSE 8080 9090
 
-CMD ["./payments"]
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+ENV ENVIRONMENT=production \
+    SERVICE_NAME=payments \
+    HTTP_PORT=8080 \
+    METRICS_PORT=9090 \
+    LOG_LEVEL=info
+
+ENTRYPOINT ["./payments"]

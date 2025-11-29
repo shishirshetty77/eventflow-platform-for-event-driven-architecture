@@ -1,0 +1,87 @@
+# =============================================================================
+# EventFlow Platform - Docker Ignore
+# =============================================================================
+
+# Git
+.git
+.gitignore
+.github
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# Documentation
+*.md
+!README.md
+LICENSE
+docs
+
+# Build artifacts
+bin/
+release/
+coverage/
+
+# Node
+node_modules
+.npm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-store
+
+# Next.js
+.next
+out
+
+# Test files
+*_test.go
+**/*_test.go
+testdata
+**/*.test.js
+**/*.spec.js
+__tests__
+jest.config.*
+
+# Local configs
+.env
+.env.local
+.env.*.local
+*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.log
+
+# Deployment (not needed in containers)
+deploy/
+!deploy/prometheus/
+!deploy/grafana/
+Makefile
+docker-compose*.yml
+Dockerfile*
+
+# CI/CD
+.travis.yml
+.circleci
+.gitlab-ci.yml
+Jenkinsfile
+azure-pipelines.yml
+
+# Kubernetes (Stage 3)
+k8s/
+helm/
+*.yaml
+!prometheus.yml
+!alerts.yml
+!datasources.yml
+!dashboards.yml

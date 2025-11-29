@@ -1,32 +1,72 @@
-# Multi-stage build for UI Backend service
+# =============================================================================
+# UI Backend Service - Production Dockerfile
+# Multi-stage build with security best practices
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: Builder
+# -----------------------------------------------------------------------------
 FROM golang:1.21-alpine AS builder
 
-WORKDIR /app
+RUN apk add --no-cache \
+    git \
+    ca-certificates \
+    tzdata \
+    && update-ca-certificates
 
-RUN apk add --no-cache git ca-certificates
+RUN adduser -D -g '' -s /sbin/nologin -u 10001 appuser
+
+WORKDIR /build
 
 COPY go.work go.work.sum ./
 COPY pkg/shared/go.mod pkg/shared/go.sum ./pkg/shared/
 COPY services/ui-backend/go.mod services/ui-backend/go.sum ./services/ui-backend/
 
-RUN cd services/ui-backend && go mod download
+WORKDIR /build/services/ui-backend
+RUN go mod download && go mod verify
 
+WORKDIR /build
 COPY pkg/shared ./pkg/shared
 COPY services/ui-backend ./services/ui-backend
 
-RUN cd services/ui-backend && CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /ui-backend ./cmd/...
+WORKDIR /build/services/ui-backend
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags='-w -s -extldflags "-static"' \
+    -a -installsuffix cgo \
+    -o /app/ui-backend \
+    ./cmd/...
 
-FROM alpine:3.18
+# -----------------------------------------------------------------------------
+# Stage 2: Production Runtime
+# -----------------------------------------------------------------------------
+FROM alpine:3.19
 
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk add --no-cache \
+    ca-certificates \
+    tzdata \
+    curl \
+    && rm -rf /var/cache/apk/*
+
+COPY --from=builder /etc/passwd /etc/passwd
+COPY --from=builder /etc/group /etc/group
 
 WORKDIR /app
 
-COPY --from=builder /ui-backend .
+COPY --from=builder /app/ui-backend .
 
-RUN adduser -D -g '' appuser
-USER appuser
+USER appuser:appuser
 
 EXPOSE 8080 9090
 
-CMD ["./ui-backend"]
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8080/api/health || exit 1
+
+ENV ENVIRONMENT=production \
+    SERVICE_NAME=ui-backend \
+    HTTP_ADDR=:8080 \
+    METRICS_ADDR=:9090 \
+    LOG_LEVEL=info \
+    REDIS_DB=2 \
+    JWT_EXPIRATION=24
+
+ENTRYPOINT ["./ui-backend"]
