@@ -286,6 +286,16 @@ docker-down:
 	$(DOCKER_COMPOSE) down
 	@echo "$(GREEN)Services stopped$(NC)"
 
+docker-up-lite:
+	@echo "$(BLUE)Starting services in lite mode...$(NC)"
+	$(DOCKER_COMPOSE) -f docker-compose.lite.yml up -d
+	@echo "$(GREEN)Services started (Lite Mode)$(NC)"
+
+docker-down-lite:
+	@echo "$(BLUE)Stopping services (Lite Mode)...$(NC)"
+	$(DOCKER_COMPOSE) -f docker-compose.lite.yml down
+	@echo "$(GREEN)Services stopped$(NC)"
+
 docker-logs:
 	$(DOCKER_COMPOSE) logs -f
 
@@ -374,6 +384,29 @@ up:
 down:
 	@echo "$(BLUE)Stopping EventFlow Platform...$(NC)"
 	$(DOCKER_COMPOSE) down
+	@echo "$(GREEN)Platform stopped$(NC)"
+
+# Start the platform in lite mode (low resource)
+up-lite:
+	@echo "$(BLUE)═══════════════════════════════════════════════════════════════$(NC)"
+	@echo "$(BLUE)       Starting EventFlow Platform (Lite Mode)$(NC)"
+	@echo "$(BLUE)═══════════════════════════════════════════════════════════════$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Building and starting essential services...$(NC)"
+	$(DOCKER_COMPOSE) -f docker-compose.lite.yml up --build -d
+	@echo ""
+	@echo "$(GREEN)Platform started successfully!$(NC)"
+	@echo ""
+	@echo "$(GREEN)Access Points:$(NC)"
+	@echo "  Dashboard:     http://localhost:3001"
+	@echo "  UI Backend:    http://localhost:8007"
+	@echo ""
+	@echo "$(YELLOW)Note: Observability stack is disabled in Lite Mode$(NC)"
+
+# Stop the platform (lite mode)
+down-lite:
+	@echo "$(BLUE)Stopping EventFlow Platform (Lite Mode)...$(NC)"
+	$(DOCKER_COMPOSE) -f docker-compose.lite.yml down
 	@echo "$(GREEN)Platform stopped$(NC)"
 
 # Restart all services

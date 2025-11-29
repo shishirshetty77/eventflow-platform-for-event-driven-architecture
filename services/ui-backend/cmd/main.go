@@ -24,7 +24,13 @@ import (
 func main() {
 	cfg := config.LoadConfig()
 
-	logger, err := logging.NewLogger(cfg.Environment, cfg.LogLevel)
+	logConfig := &logging.Config{
+		Level:       cfg.LogLevel,
+		Development: cfg.Environment == "development",
+		ServiceName: "ui-backend",
+		OutputPaths: []string{"stdout"},
+	}
+	logger, err := logging.NewLogger(logConfig)
 	if err != nil {
 		panic("failed to initialize logger: " + err.Error())
 	}
@@ -35,7 +41,7 @@ func main() {
 		zap.String("version", cfg.Version),
 	)
 
-	jwtService := jwt.NewTokenService(cfg.JWTSecret, cfg.JWTExpiration)
+	jwtService := jwt.NewTokenService(cfg.JWTSecret)
 
 	redisStore, err := store.NewRedisStore(
 		cfg.RedisAddr,

@@ -14,20 +14,30 @@ type MetricsStore interface {
 	AddMetric(ctx context.Context, metric *models.ServiceMetric) error
 	// GetMetricsInWindow retrieves metrics within the sliding window for a service and metric type.
 	GetMetricsInWindow(ctx context.Context, serviceName models.ServiceName, metricType models.MetricType, windowSize time.Duration) ([]*models.ServiceMetric, error)
+	// GetMetricsWindow retrieves metrics for a service within a time window.
+	GetMetricsWindow(ctx context.Context, serviceName models.ServiceName, windowSize time.Duration) ([]*models.ServiceMetric, error)
 	// GetRollingAverage calculates the rolling average for a service and metric type.
 	GetRollingAverage(ctx context.Context, serviceName models.ServiceName, metricType models.MetricType, windowSize time.Duration) (float64, error)
 	// GetLatestMetric retrieves the most recent metric for a service and metric type.
 	GetLatestMetric(ctx context.Context, serviceName models.ServiceName, metricType models.MetricType) (*models.ServiceMetric, error)
 	// CleanupOldMetrics removes metrics older than the retention period.
 	CleanupOldMetrics(ctx context.Context, retentionPeriod time.Duration) error
+	// CheckAndSetAlertSent checks if an alert was recently sent and marks it as sent.
+	CheckAndSetAlertSent(ctx context.Context, deduplicationKey string, ttl time.Duration) (bool, error)
+	// CheckCooldown checks if a service/metric is in cooldown.
+	CheckCooldown(ctx context.Context, serviceName, metricType string) (bool, error)
+	// SetCooldown sets a cooldown period for a service/metric.
+	SetCooldown(ctx context.Context, serviceName, metricType string, duration time.Duration) error
 }
 
-// RuleStore defines the interface for managing threshold rules.
-type RuleStore interface {
+// RulesStore defines the interface for managing threshold rules (plural for compatibility).
+type RulesStore interface {
 	// GetRule retrieves a rule by ID.
 	GetRule(ctx context.Context, id string) (*models.ThresholdRule, error)
 	// GetAllRules retrieves all rules.
 	GetAllRules(ctx context.Context) ([]*models.ThresholdRule, error)
+	// GetEnabledRules retrieves all enabled rules.
+	GetEnabledRules(ctx context.Context) ([]*models.ThresholdRule, error)
 	// GetRulesForService retrieves all rules for a specific service.
 	GetRulesForService(ctx context.Context, serviceName models.ServiceName) ([]*models.ThresholdRule, error)
 	// CreateRule creates a new rule.
@@ -37,6 +47,9 @@ type RuleStore interface {
 	// DeleteRule deletes a rule.
 	DeleteRule(ctx context.Context, id string) error
 }
+
+// RuleStore is an alias for RulesStore for compatibility.
+type RuleStore = RulesStore
 
 // AlertStore defines the interface for managing alerts and cooldowns.
 type AlertStore interface {

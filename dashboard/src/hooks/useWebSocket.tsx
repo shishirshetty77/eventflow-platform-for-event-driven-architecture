@@ -51,6 +51,7 @@ interface WebSocketState {
   isConnecting: boolean
   error: string | null
   reconnectAttempts: number
+  lastMessage: WebSocketMessage | null
 }
 
 export function useWebSocket({
@@ -70,6 +71,7 @@ export function useWebSocket({
     isConnecting: false,
     error: null,
     reconnectAttempts: 0,
+    lastMessage: null,
   })
 
   const cleanup = useCallback(() => {
@@ -100,6 +102,7 @@ export function useWebSocket({
           isConnecting: false,
           error: null,
           reconnectAttempts: 0,
+          lastMessage: null,
         })
       }
 
@@ -144,6 +147,9 @@ export function useWebSocket({
         try {
           const message: WebSocketMessage = JSON.parse(event.data)
 
+          // Update lastMessage in state
+          setState((prev) => ({ ...prev, lastMessage: message }))
+
           onMessage?.(message)
 
           switch (message.type) {
@@ -183,6 +189,7 @@ export function useWebSocket({
       isConnecting: false,
       error: null,
       reconnectAttempts: 0,
+      lastMessage: null,
     })
   }, [cleanup])
 

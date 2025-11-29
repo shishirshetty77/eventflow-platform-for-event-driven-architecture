@@ -7,10 +7,24 @@
 make up
 
 # Or using docker-compose directly
+# Or using docker-compose directly
 docker-compose up --build
 ```
 
+### 🐣 Lite Mode (Low Resource)
+
+For environments with limited resources (e.g., micro instances), use Lite Mode. This disables observability tools (Prometheus, Grafana, Jaeger) and tunes JVM heap sizes.
+
+```bash
+# Start in lite mode
+make up-lite
+
+# Or using docker-compose
+docker-compose -f docker-compose.lite.yml up --build
+```
+
 That's it! The platform will be available at:
+
 - **Dashboard**: http://localhost:3001
 - **Grafana**: http://localhost:3000 (admin/admin)
 - **Kafka UI**: http://localhost:8080
@@ -70,31 +84,33 @@ That's it! The platform will be available at:
 
 ### Primary Commands
 
-| Command | Description |
-|---------|-------------|
-| `make up` | Start entire platform (build + run) |
-| `make down` | Stop entire platform |
-| `make restart` | Restart all services |
-| `make logs` | Follow logs from all services |
-| `make ps` | Show running containers |
-| `make status` | Show detailed status |
-| `make health` | Run health check on all services |
+| Command          | Description                                    |
+| ---------------- | ---------------------------------------------- |
+| `make up`        | Start entire platform (build + run)            |
+| `make down`      | Stop entire platform                           |
+| `make restart`   | Restart all services                           |
+| `make logs`      | Follow logs from all services                  |
+| `make ps`        | Show running containers                        |
+| `make status`    | Show detailed status                           |
+| `make health`    | Run health check on all services               |
+| `make up-lite`   | Start platform in Lite Mode (no observability) |
+| `make down-lite` | Stop Lite Mode platform                        |
 
 ### Build Commands
 
-| Command | Description |
-|---------|-------------|
-| `make build-images` | Build all Docker images |
-| `make rebuild` | Force rebuild (no cache) |
-| `make pull` | Pull latest base images |
+| Command             | Description              |
+| ------------------- | ------------------------ |
+| `make build-images` | Build all Docker images  |
+| `make rebuild`      | Force rebuild (no cache) |
+| `make pull`         | Pull latest base images  |
 
 ### Cleanup Commands
 
-| Command | Description |
-|---------|-------------|
-| `make docker-clean` | Stop containers, remove network |
+| Command                 | Description                     |
+| ----------------------- | ------------------------------- |
+| `make docker-clean`     | Stop containers, remove network |
 | `make docker-clean-all` | Full cleanup (volumes + images) |
-| `make docker-prune` | Remove dangling resources |
+| `make docker-prune`     | Remove dangling resources       |
 
 ### Service-Specific Commands
 
@@ -150,29 +166,30 @@ cp .env.example .env
 ```
 
 Key variables:
+
 - `JWT_SECRET` - Change in production!
 - `GF_SECURITY_ADMIN_PASSWORD` - Grafana admin password
 - `LOG_LEVEL` - Set to `debug` for troubleshooting
 
 ### Port Mapping
 
-| Service | Internal Port | External Port |
-|---------|--------------|---------------|
-| Auth | 8080 | 8001 |
-| Orders | 8080 | 8002 |
-| Payments | 8080 | 8003 |
-| Notification | 8080 | 8004 |
-| Analyzer | 8080 | 8005 |
-| Alert Engine | 8080 | 8006 |
-| UI Backend | 8080 | 8007 |
-| Dashboard | 3000 | 3001 |
-| Kafka | 9092 | 9092 |
-| Redis | 6379 | 6379 |
-| Prometheus | 9090 | 9090 |
-| Grafana | 3000 | 3000 |
-| Jaeger | 16686 | 16686 |
-| Kafka UI | 8080 | 8080 |
-| Redis Commander | 8081 | 8081 |
+| Service         | Internal Port | External Port |
+| --------------- | ------------- | ------------- |
+| Auth            | 8080          | 8001          |
+| Orders          | 8080          | 8002          |
+| Payments        | 8080          | 8003          |
+| Notification    | 8080          | 8004          |
+| Analyzer        | 8080          | 8005          |
+| Alert Engine    | 8080          | 8006          |
+| UI Backend      | 8080          | 8007          |
+| Dashboard       | 3000          | 3001          |
+| Kafka           | 9092          | 9092          |
+| Redis           | 6379          | 6379          |
+| Prometheus      | 9090          | 9090          |
+| Grafana         | 3000          | 3000          |
+| Jaeger          | 16686         | 16686         |
+| Kafka UI        | 8080          | 8080          |
+| Redis Commander | 8081          | 8081          |
 
 ## 📊 Observability
 
@@ -185,6 +202,7 @@ Key variables:
 ### Prometheus Metrics
 
 All services expose metrics on their `/metrics` endpoint:
+
 - http://localhost:8001/metrics (Auth)
 - http://localhost:8002/metrics (Orders)
 - etc.
@@ -252,16 +270,17 @@ make up
 
 The platform uses named volumes for data persistence:
 
-| Volume | Purpose |
-|--------|---------|
-| `eventflow-kafka-data` | Kafka message storage |
-| `eventflow-zookeeper-data` | Zookeeper data |
-| `eventflow-zookeeper-logs` | Zookeeper logs |
-| `eventflow-redis-data` | Redis data |
-| `eventflow-prometheus-data` | Prometheus metrics |
-| `eventflow-grafana-data` | Grafana dashboards/config |
+| Volume                      | Purpose                   |
+| --------------------------- | ------------------------- |
+| `eventflow-kafka-data`      | Kafka message storage     |
+| `eventflow-zookeeper-data`  | Zookeeper data            |
+| `eventflow-zookeeper-logs`  | Zookeeper logs            |
+| `eventflow-redis-data`      | Redis data                |
+| `eventflow-prometheus-data` | Prometheus metrics        |
+| `eventflow-grafana-data`    | Grafana dashboards/config |
 
 To clear all data:
+
 ```bash
 make docker-clean-all
 ```
@@ -271,6 +290,7 @@ make docker-clean-all
 All services communicate on the `eventflow-network` bridge network (172.28.0.0/16).
 
 Service discovery uses Docker Compose service names:
+
 - `kafka:9092`
 - `redis:6379`
 - `auth:8080`
@@ -283,6 +303,7 @@ Service discovery uses Docker Compose service names:
 All services output structured JSON logs to stdout/stderr, which Docker captures automatically.
 
 View logs:
+
 ```bash
 # All services
 make logs
@@ -315,16 +336,19 @@ docker-compose logs --tail=100 auth
 For production deployment:
 
 1. **Change all default passwords**
+
    - JWT_SECRET
    - Grafana admin password
    - Redis password (enable AUTH)
 
 2. **Enable TLS**
+
    - Configure reverse proxy (nginx/traefik)
    - Enable Kafka SSL
    - Enable Redis TLS
 
 3. **Network isolation**
+
    - Don't expose infrastructure ports publicly
    - Use internal Docker network
 

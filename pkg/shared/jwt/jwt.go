@@ -39,9 +39,10 @@ func NewManager(cfg *Config) *Manager {
 
 // Claims represents JWT claims.
 type Claims struct {
-	UserID string `json:"user_id"`
-	Email  string `json:"email"`
-	Role   string `json:"role"`
+	UserID   string `json:"user_id"`
+	Email    string `json:"email"`
+	Username string `json:"username"`
+	Role     string `json:"role"`
 	jwt.RegisteredClaims
 }
 
@@ -50,9 +51,10 @@ func (m *Manager) GenerateToken(user *models.User) (string, int64, error) {
 	expiresAt := time.Now().Add(m.config.TokenExpiry)
 
 	claims := &Claims{
-		UserID: user.ID,
-		Email:  user.Email,
-		Role:   user.Role,
+		UserID:   user.ID,
+		Email:    user.Email,
+		Username: user.Username,
+		Role:     user.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -100,9 +102,10 @@ func (m *Manager) RefreshToken(tokenString string) (string, int64, error) {
 
 	// Create a new user from claims to generate new token
 	user := &models.User{
-		ID:    claims.UserID,
-		Email: claims.Email,
-		Role:  claims.Role,
+		ID:       claims.UserID,
+		Email:    claims.Email,
+		Username: claims.Username,
+		Role:     claims.Role,
 	}
 
 	return m.GenerateToken(user)
@@ -126,4 +129,36 @@ func (m *Manager) GetTokenClaims(tokenString string) (*models.TokenClaims, error
 		Email:  claims.Email,
 		Role:   claims.Role,
 	}, nil
+}
+
+// TokenService is an alias for Manager providing token operations.
+// Used by ui-backend and other services for JWT handling.
+type TokenService struct {
+	*Manager
+}
+
+// NewTokenService creates a new TokenService with default config.
+func NewTokenService(secretKey string) *TokenService {
+	cfg := DefaultConfig()
+	if secretKey != "" {
+		cfg.SecretKey = secretKey
+	}
+	return &TokenService{Manager: NewManager(cfg)}
+}
+
+// Generate generates a new JWT token for a user.
+func (ts *TokenService) Generate(user *models.User) (string, error) {
+	token, _, err := ts.Manager.GenerateToken(user)
+	return token, err
+}
+
+// Validate validates a JWT token and returns the claims.
+func (ts *TokenService) Validate(tokenString string) (*Claims, error) {
+	return ts.Manager.ValidateToken(tokenString)
+}
+
+// Refresh generates a new token from a valid token.
+func (ts *TokenService) Refresh(tokenString string) (string, error) {
+	token, _, err := ts.Manager.RefreshToken(tokenString)
+	return token, err
 }

@@ -25,7 +25,13 @@ func main() {
 	cfg := config.LoadConfig()
 
 	// Initialize logger
-	logger, err := logging.NewLogger(cfg.Environment, cfg.LogLevel)
+	logConfig := &logging.Config{
+		Level:       cfg.LogLevel,
+		Development: cfg.Environment == "development",
+		ServiceName: cfg.ServiceName,
+		OutputPaths: []string{"stdout"},
+	}
+	logger, err := logging.NewLogger(logConfig)
 	if err != nil {
 		panic("failed to initialize logger: " + err.Error())
 	}
@@ -37,7 +43,7 @@ func main() {
 	)
 
 	// Initialize metrics
-	m := metrics.NewMetrics("alert-engine", cfg.Environment, cfg.Version)
+	m := metrics.NewMetrics(cfg.ServiceName)
 
 	// Initialize dispatchers
 	dispatcherList := []ports.AlertDispatcher{

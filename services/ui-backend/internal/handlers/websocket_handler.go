@@ -273,8 +273,8 @@ func NewMetricsStreamer(
 
 	return &MetricsStreamer{
 		hub:           hub,
-		metricsReader: kafka.NewReader(metricsConfig),
-		alertsReader:  kafka.NewReader(alertsConfig),
+		metricsReader: kafka.NewReader(metricsConfig.ToReaderConfig()),
+		alertsReader:  kafka.NewReader(alertsConfig.ToReaderConfig()),
 		logger:        logger,
 	}
 }

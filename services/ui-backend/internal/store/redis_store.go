@@ -78,25 +78,77 @@ func (s *RedisStore) GetMetrics(ctx context.Context, service models.ServiceName,
 	return metrics, nil
 }
 
-// GetLatestMetric returns the latest metric for a service.
+// GetLatestMetric returns the latest aggregated metric for a service.
 func (s *RedisStore) GetLatestMetric(ctx context.Context, service models.ServiceName) (*models.ServiceMetric, error) {
-	key := fmt.Sprintf("metrics:%s", service)
-
-	results, err := s.client.ZRevRange(ctx, key, 0, 0).Result()
-	if err != nil {
-		return nil, err
+	// The analyzer stores metrics by type, so we need to aggregate them
+	metricTypes := []models.MetricType{
+		models.MetricTypeCPU,
+		models.MetricTypeMemory,
+		models.MetricTypeLatency,
+		models.MetricTypeError,
 	}
 
-	if len(results) == 0 {
+	result := &models.ServiceMetric{
+		ServiceName: service,
+		Timestamp:   time.Now(),
+	}
+
+	foundAny := false
+
+	for _, metricType := range metricTypes {
+		// Try the latest key first (set by analyzer)
+		latestKey := fmt.Sprintf("metrics:latest:%s:%s", service, metricType)
+		data, err := s.client.Get(ctx, latestKey).Result()
+		if err == nil && data != "" {
+			var metric models.ServiceMetric
+			if err := json.Unmarshal([]byte(data), &metric); err == nil {
+				foundAny = true
+				switch metricType {
+				case models.MetricTypeCPU:
+					result.CPUUsage = metric.Value
+				case models.MetricTypeMemory:
+					result.MemoryUsage = metric.Value
+				case models.MetricTypeLatency:
+					result.LatencyP95 = metric.Value
+				case models.MetricTypeError:
+					result.ErrorRate = metric.Value
+				}
+				if metric.Timestamp.After(result.Timestamp) || result.Timestamp.IsZero() {
+					result.Timestamp = metric.Timestamp
+				}
+			}
+			continue
+		}
+
+		// Fallback to sorted set
+		sortedKey := fmt.Sprintf("metrics:%s:%s", service, metricType)
+		results, err := s.client.ZRevRange(ctx, sortedKey, 0, 0).Result()
+		if err == nil && len(results) > 0 {
+			var metric models.ServiceMetric
+			if err := json.Unmarshal([]byte(results[0]), &metric); err == nil {
+				foundAny = true
+				switch metricType {
+				case models.MetricTypeCPU:
+					result.CPUUsage = metric.Value
+				case models.MetricTypeMemory:
+					result.MemoryUsage = metric.Value
+				case models.MetricTypeLatency:
+					result.LatencyP95 = metric.Value
+				case models.MetricTypeError:
+					result.ErrorRate = metric.Value
+				}
+				if metric.Timestamp.After(result.Timestamp) || result.Timestamp.IsZero() {
+					result.Timestamp = metric.Timestamp
+				}
+			}
+		}
+	}
+
+	if !foundAny {
 		return nil, nil
 	}
 
-	var metric models.ServiceMetric
-	if err := json.Unmarshal([]byte(results[0]), &metric); err != nil {
-		return nil, err
-	}
-
-	return &metric, nil
+	return result, nil
 }
 
 // StoreMetric stores a metric.
