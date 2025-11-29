@@ -253,6 +253,20 @@ func DefaultConsumerConfig(brokers []string, topic, groupID string) *ConsumerCon
 	}
 }
 
+// ToReaderConfig converts ConsumerConfig to kafka.ReaderConfig.
+func (c *ConsumerConfig) ToReaderConfig() kafka.ReaderConfig {
+	return kafka.ReaderConfig{
+		Brokers:        c.Brokers,
+		Topic:          c.Topic,
+		GroupID:        c.GroupID,
+		MinBytes:       c.MinBytes,
+		MaxBytes:       c.MaxBytes,
+		MaxWait:        c.MaxWait,
+		StartOffset:    c.StartOffset,
+		CommitInterval: c.CommitInterval,
+	}
+}
+
 // Consumer wraps kafka.Reader with observability.
 type Consumer struct {
 	reader *kafka.Reader

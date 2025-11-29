@@ -167,6 +167,95 @@ func (s *RedisMetricsStore) CleanupOldMetrics(ctx context.Context, retentionPeri
 	return nil
 }
 
+// GetMetricsWindow retrieves all metrics for a service within a time window.
+func (s *RedisMetricsStore) GetMetricsWindow(ctx context.Context, serviceName models.ServiceName, windowSize time.Duration) ([]*models.ServiceMetric, error) {
+	// Get metrics for all metric types for this service
+	metricTypes := []models.MetricType{
+		models.MetricTypeCPU,
+		models.MetricTypeMemory,
+		models.MetricTypeLatencyP95,
+		models.MetricTypeLatencyP99,
+		models.MetricTypeErrorRate,
+		models.MetricTypeRequestRate,
+	}
+
+	var allMetrics []*models.ServiceMetric
+	for _, metricType := range metricTypes {
+		metrics, err := s.GetMetricsInWindow(ctx, serviceName, metricType, windowSize)
+		if err != nil {
+			s.logger.Warn("failed to get metrics for type",
+				zap.String("metric_type", string(metricType)),
+				zap.Error(err),
+			)
+			continue
+		}
+		allMetrics = append(allMetrics, metrics...)
+	}
+
+	// Also try the generic metrics key
+	key := fmt.Sprintf("metrics:%s", serviceName)
+	minTime := time.Now().Add(-windowSize).UnixNano()
+	maxTime := time.Now().UnixNano()
+
+	results, err := s.client.ZRangeByScore(ctx, key, &redis.ZRangeBy{
+		Min: strconv.FormatInt(minTime, 10),
+		Max: strconv.FormatInt(maxTime, 10),
+	}).Result()
+	if err == nil {
+		for _, data := range results {
+			var metric models.ServiceMetric
+			if err := json.Unmarshal([]byte(data), &metric); err == nil {
+				allMetrics = append(allMetrics, &metric)
+			}
+		}
+	}
+
+	// Sort by timestamp
+	sort.Slice(allMetrics, func(i, j int) bool {
+		return allMetrics[i].Timestamp.Before(allMetrics[j].Timestamp)
+	})
+
+	return allMetrics, nil
+}
+
+// CheckAndSetAlertSent checks if an alert was recently sent and marks it as sent.
+func (s *RedisMetricsStore) CheckAndSetAlertSent(ctx context.Context, deduplicationKey string, ttl time.Duration) (bool, error) {
+	key := fmt.Sprintf("alert:sent:%s", deduplicationKey)
+
+	// Try to set the key only if it doesn't exist
+	result, err := s.client.SetNX(ctx, key, "1", ttl).Result()
+	if err != nil {
+		return false, fmt.Errorf("failed to check/set alert sent: %w", err)
+	}
+
+	// If SetNX returns false, the key already existed (alert was already sent)
+	return !result, nil
+}
+
+// CheckCooldown checks if a service/metric is in cooldown.
+func (s *RedisMetricsStore) CheckCooldown(ctx context.Context, serviceName, metricType string) (bool, error) {
+	key := fmt.Sprintf("cooldown:%s:%s", serviceName, metricType)
+
+	exists, err := s.client.Exists(ctx, key).Result()
+	if err != nil {
+		return false, fmt.Errorf("failed to check cooldown: %w", err)
+	}
+
+	return exists > 0, nil
+}
+
+// SetCooldown sets a cooldown period for a service/metric.
+func (s *RedisMetricsStore) SetCooldown(ctx context.Context, serviceName, metricType string, duration time.Duration) error {
+	key := fmt.Sprintf("cooldown:%s:%s", serviceName, metricType)
+
+	err := s.client.Set(ctx, key, "1", duration).Err()
+	if err != nil {
+		return fmt.Errorf("failed to set cooldown: %w", err)
+	}
+
+	return nil
+}
+
 // RedisRuleStore implements RuleStore using Redis.
 type RedisRuleStore struct {
 	client *redis.Client
@@ -219,6 +308,23 @@ func (s *RedisRuleStore) GetAllRules(ctx context.Context) ([]*models.ThresholdRu
 	}
 
 	return rules, nil
+}
+
+// GetEnabledRules retrieves all enabled rules.
+func (s *RedisRuleStore) GetEnabledRules(ctx context.Context) ([]*models.ThresholdRule, error) {
+	allRules, err := s.GetAllRules(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	enabledRules := make([]*models.ThresholdRule, 0)
+	for _, rule := range allRules {
+		if rule.Enabled {
+			enabledRules = append(enabledRules, rule)
+		}
+	}
+
+	return enabledRules, nil
 }
 
 // GetRulesForService retrieves all rules for a specific service.

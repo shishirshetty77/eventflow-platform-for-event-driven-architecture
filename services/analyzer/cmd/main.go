@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -10,22 +11,28 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
 	"github.com/microservices-platform/pkg/shared/logging"
 	"github.com/microservices-platform/pkg/shared/metrics"
-	"github.com/microservices-platform/pkg/shared/models"
 	"github.com/microservices-platform/services/analyzer/internal/adapters"
 	"github.com/microservices-platform/services/analyzer/internal/config"
 	"github.com/microservices-platform/services/analyzer/internal/core"
+	"github.com/microservices-platform/services/analyzer/internal/ports"
 )
 
 func main() {
 	// Load configuration
-	cfg := config.LoadConfig()
+	cfg := config.Load()
 
 	// Initialize logger
-	logger, err := logging.NewLogger(cfg.Environment, cfg.LogLevel)
+	logConfig := &logging.Config{
+		Level:       cfg.LogLevel,
+		Development: cfg.Development,
+		ServiceName: cfg.ServiceName,
+	}
+	logger, err := logging.NewLogger(logConfig)
 	if err != nil {
 		panic("failed to initialize logger: " + err.Error())
 	}
@@ -37,35 +44,35 @@ func main() {
 	)
 
 	// Initialize metrics
-	m := metrics.NewMetrics("analyzer", cfg.Environment, cfg.Version)
+	m := metrics.NewMetrics(cfg.ServiceName)
 
-	// Initialize Redis store
-	redisStore, err := adapters.NewRedisStore(
-		cfg.RedisAddr,
-		cfg.RedisPassword,
-		cfg.RedisDB,
-		time.Duration(cfg.SlidingWindowSeconds)*time.Second,
-		logger,
-	)
-	if err != nil {
-		logger.Fatal("failed to initialize Redis store", zap.Error(err))
+	// Initialize Redis client
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     cfg.RedisAddr,
+		Password: cfg.RedisPassword,
+		DB:       cfg.RedisDB,
+	})
+	defer redisClient.Close()
+
+	// Test Redis connection
+	if err := redisClient.Ping(context.Background()).Err(); err != nil {
+		logger.Fatal("failed to connect to Redis", zap.Error(err))
 	}
-	defer redisStore.Close()
-
 	logger.Info("connected to Redis", zap.String("addr", cfg.RedisAddr))
 
+	// Initialize Redis stores
+	metricsStore := adapters.NewRedisMetricsStore(redisClient, logger)
+	rulesStore := adapters.NewRedisRuleStore(redisClient, logger)
+
 	// Initialize Kafka alert publisher
-	var alertPublisher interface {
-		PublishAlert(context.Context, *models.Alert) error
-		Close() error
-	}
+	var alertPublisher ports.AlertPublisher
 
 	// Check if Kafka is available
 	kafkaAvailable := len(cfg.KafkaBrokers) > 0 && cfg.KafkaBrokers[0] != ""
 	if kafkaAvailable {
 		kafkaPublisher, err := adapters.NewKafkaAlertPublisher(
 			cfg.KafkaBrokers,
-			cfg.AlertsTopic,
+			cfg.KafkaAlertsTopic,
 			logger,
 			m,
 		)
@@ -78,7 +85,7 @@ func main() {
 			alertPublisher = kafkaPublisher
 			logger.Info("Kafka alert publisher initialized",
 				zap.Strings("brokers", cfg.KafkaBrokers),
-				zap.String("topic", cfg.AlertsTopic),
+				zap.String("topic", cfg.KafkaAlertsTopic),
 			)
 		}
 	} else {
@@ -89,25 +96,23 @@ func main() {
 
 	// Initialize analyzer
 	analyzerConfig := &core.AnalysisConfig{
-		SlidingWindowSize:         time.Duration(cfg.SlidingWindowSeconds) * time.Second,
-		RollingWindowSize:         time.Duration(cfg.RollingWindowSeconds) * time.Second,
-		AnalysisInterval:          time.Duration(cfg.AnalysisIntervalSeconds) * time.Second,
-		DefaultCPUThreshold:       cfg.DefaultCPUThreshold,
-		DefaultMemoryThreshold:    cfg.DefaultMemoryThreshold,
-		DefaultLatencyThreshold:   cfg.DefaultLatencyThreshold,
-		DefaultErrorRateThreshold: cfg.DefaultErrorRateThreshold,
-		DeviationMultiplier:       cfg.DeviationMultiplier,
-		MinSamplesForDeviation:    cfg.MinSamplesForDeviation,
-		DefaultCooldownPeriod:     time.Duration(cfg.DefaultCooldownSeconds) * time.Second,
+		SlidingWindowSize:         cfg.SlidingWindowSize,
+		RollingWindowSize:         cfg.SlidingWindowSize,
+		AnalysisInterval:          cfg.AnalysisInterval,
+		DefaultCPUThreshold:       80.0,
+		DefaultMemoryThreshold:    85.0,
+		DefaultLatencyThreshold:   1000.0,
+		DefaultErrorRateThreshold: 5.0,
+		DeviationMultiplier:       2.0,
+		MinSamplesForDeviation:    10,
+		DefaultCooldownPeriod:     cfg.AlertCooldown,
 	}
 
 	analyzer := core.NewAnalyzer(
 		analyzerConfig,
-		redisStore,
-		redisStore, // RedisStore implements both MetricsStore and RulesStore
-		alertPublisher.(interface {
-			PublishAlert(context.Context, *models.Alert) error
-		}),
+		metricsStore,
+		rulesStore,
+		alertPublisher,
 		logger,
 	)
 
@@ -119,10 +124,10 @@ func main() {
 	if kafkaAvailable {
 		consumer, err := adapters.NewKafkaMetricsConsumer(
 			cfg.KafkaBrokers,
-			cfg.MetricsTopic,
-			cfg.LogsTopic,
-			cfg.ConsumerGroup,
-			redisStore,
+			cfg.KafkaMetricsTopic,
+			cfg.KafkaLogsTopic,
+			cfg.KafkaConsumerGroup,
+			metricsStore,
 			logger,
 			m,
 		)
@@ -147,13 +152,14 @@ func main() {
 	defer analyzer.Stop()
 
 	// Start metrics HTTP server
+	metricsAddr := fmt.Sprintf(":%d", cfg.MetricsPort)
 	metricsServer := &http.Server{
-		Addr:    cfg.MetricsAddr,
+		Addr:    metricsAddr,
 		Handler: promhttp.Handler(),
 	}
 
 	go func() {
-		logger.Info("starting metrics server", zap.String("addr", cfg.MetricsAddr))
+		logger.Info("starting metrics server", zap.String("addr", metricsAddr))
 		if err := metricsServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("metrics server error", zap.Error(err))
 		}
@@ -168,7 +174,7 @@ func main() {
 	})
 	healthMux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
 		// Check Redis connectivity
-		if err := redisStore.Ping(ctx); err != nil {
+		if err := redisClient.Ping(ctx).Err(); err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusServiceUnavailable)
 			w.Write([]byte(`{"status":"not_ready","reason":"redis_unavailable"}`))
@@ -179,13 +185,14 @@ func main() {
 		w.Write([]byte(`{"status":"ready","service":"analyzer"}`))
 	})
 
+	healthAddr := fmt.Sprintf(":%d", cfg.HTTPPort)
 	healthServer := &http.Server{
-		Addr:    cfg.HealthAddr,
+		Addr:    healthAddr,
 		Handler: healthMux,
 	}
 
 	go func() {
-		logger.Info("starting health server", zap.String("addr", cfg.HealthAddr))
+		logger.Info("starting health server", zap.String("addr", healthAddr))
 		if err := healthServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("health server error", zap.Error(err))
 		}

@@ -388,7 +388,7 @@ func (a *Analyzer) generateAlertMessage(alertType string, service models.Service
 // AnalyzeMetric immediately analyzes a single metric (useful for real-time processing).
 func (a *Analyzer) AnalyzeMetric(ctx context.Context, metric *models.ServiceMetric) error {
 	// Get relevant rules for this service
-	rules, err := a.rulesStore.GetRulesByService(ctx, metric.ServiceName)
+	rules, err := a.rulesStore.GetRulesForService(ctx, metric.ServiceName)
 	if err != nil {
 		return err
 	}

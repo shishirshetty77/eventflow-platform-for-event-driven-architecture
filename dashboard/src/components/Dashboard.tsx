@@ -65,11 +65,16 @@ export function Dashboard({ token, onLogout }: DashboardProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const { isConnected, lastMessage } = useWebSocket(token)
+  const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8007/ws'
+  const { isConnected, lastMessage } = useWebSocket({
+    url: wsUrl,
+    token,
+  })
 
   const fetchStats = useCallback(async () => {
     try {
-      const response = await fetch(`${process.env.API_URL}/api/dashboard/stats`, {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8007'
+      const response = await fetch(`${apiUrl}/api/dashboard/stats`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -269,11 +274,94 @@ export function Dashboard({ token, onLogout }: DashboardProps) {
         )}
 
         {activeTab === 'alerts' && (
-          <AlertList token={token} />
+          <AlertList 
+            alerts={stats?.recent_alerts?.map(a => ({
+              id: a.id,
+              service: a.service_name,
+              type: 'threshold',
+              severity: a.severity as 'critical' | 'warning' | 'info',
+              message: a.message,
+              value: 0,
+              threshold: 0,
+              timestamp: a.timestamp,
+              acknowledged: a.acknowledged,
+            })) || []}
+            onAcknowledge={async (alertId) => {
+              try {
+                await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/alerts/${alertId}/acknowledge`, {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${token}` },
+                })
+                fetchStats()
+              } catch (err) {
+                console.error('Failed to acknowledge alert:', err)
+              }
+            }}
+            onRefresh={fetchStats}
+          />
         )}
 
         {activeTab === 'rules' && (
-          <RulesPanel token={token} />
+          <RulesPanel 
+            rules={[]}
+            services={Object.keys(stats?.service_stats || {})}
+            onCreateRule={async (rule) => {
+              try {
+                await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/rules`, {
+                  method: 'POST',
+                  headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(rule),
+                })
+                fetchStats()
+              } catch (err) {
+                console.error('Failed to create rule:', err)
+              }
+            }}
+            onUpdateRule={async (id, rule) => {
+              try {
+                await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/rules/${id}`, {
+                  method: 'PUT',
+                  headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(rule),
+                })
+                fetchStats()
+              } catch (err) {
+                console.error('Failed to update rule:', err)
+              }
+            }}
+            onDeleteRule={async (id) => {
+              try {
+                await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/rules/${id}`, {
+                  method: 'DELETE',
+                  headers: { 'Authorization': `Bearer ${token}` },
+                })
+                fetchStats()
+              } catch (err) {
+                console.error('Failed to delete rule:', err)
+              }
+            }}
+            onToggleRule={async (id, enabled) => {
+              try {
+                await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/rules/${id}`, {
+                  method: 'PUT',
+                  headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ enabled }),
+                })
+                fetchStats()
+              } catch (err) {
+                console.error('Failed to toggle rule:', err)
+              }
+            }}
+          />
         )}
       </div>
     </div>
