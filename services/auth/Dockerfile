@@ -21,9 +21,10 @@ RUN adduser -D -g '' -s /sbin/nologin -u 10001 appuser
 WORKDIR /build
 
 # Copy go workspace and module files first (better layer caching)
-COPY go.work go.work.sum ./
-COPY pkg/shared/go.mod pkg/shared/go.sum ./pkg/shared/
-COPY services/auth/go.mod services/auth/go.sum ./services/auth/
+COPY go.work ./
+COPY go.work.sum* ./
+COPY pkg/shared/go.mod pkg/shared/go.sum* ./pkg/shared/
+COPY services/auth/go.mod services/auth/go.sum* ./services/auth/
 
 # Download dependencies
 WORKDIR /build/services/auth

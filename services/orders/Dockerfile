@@ -18,9 +18,10 @@ RUN adduser -D -g '' -s /sbin/nologin -u 10001 appuser
 
 WORKDIR /build
 
-COPY go.work go.work.sum ./
-COPY pkg/shared/go.mod pkg/shared/go.sum ./pkg/shared/
-COPY services/orders/go.mod services/orders/go.sum ./services/orders/
+COPY go.work ./
+COPY go.work.sum* ./
+COPY pkg/shared/go.mod pkg/shared/go.sum* ./pkg/shared/
+COPY services/orders/go.mod services/orders/go.sum* ./services/orders/
 
 WORKDIR /build/services/orders
 RUN go mod download && go mod verify
