@@ -3,7 +3,7 @@
 # Optimized for resource-constrained environments (e.g., micro instances)
 # Removes observability stack and tunes JVM heap sizes
 # =============================================================================
-# 
+#
 # Usage:
 #   docker-compose -f docker-compose.lite.yml up --build
 #   make up-lite
@@ -107,10 +107,10 @@ services:
       echo '=========================================='
       echo 'Creating Kafka topics...'
       echo '=========================================='
-      
+
       # Wait for Kafka to be fully ready
       sleep 5
-      
+
       # Create service-metrics topic
       kafka-topics --create --if-not-exists \
         --topic service-metrics \
@@ -119,7 +119,7 @@ services:
         --replication-factor 1 \
         --config retention.ms=604800000 \
         --config cleanup.policy=delete
-      
+
       # Create service-logs topic
       kafka-topics --create --if-not-exists \
         --topic service-logs \
@@ -128,7 +128,7 @@ services:
         --replication-factor 1 \
         --config retention.ms=604800000 \
         --config cleanup.policy=delete
-      
+
       # Create alerts topic
       kafka-topics --create --if-not-exists \
         --topic alerts \
@@ -137,7 +137,7 @@ services:
         --replication-factor 1 \
         --config retention.ms=604800000 \
         --config cleanup.policy=delete
-      
+
       # Create alerts-dlq (dead letter queue) topic
       kafka-topics --create --if-not-exists \
         --topic alerts-dlq \
@@ -146,7 +146,7 @@ services:
         --replication-factor 1 \
         --config retention.ms=2592000000 \
         --config cleanup.policy=delete
-      
+
       echo ''
       echo '=========================================='
       echo 'Topics created successfully:'

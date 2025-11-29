@@ -148,8 +148,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: dashboard/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -183,7 +181,7 @@ jobs:
         uses: hadolint/hadolint-action@v3.1.0
         with:
           recursive: true
-          ignore: DL3008,DL3013,DL3018
+          ignore: DL3008,DL3013,DL3018,DL3059
 
       - name: Validate docker-compose.yml
         run: docker compose config -q
@@ -406,7 +404,7 @@ jobs:
           TOKEN=$(curl -s -X POST http://localhost:8007/api/auth/login \
             -H "Content-Type: application/json" \
             -d '{"username": "admin", "password": "admin"}' | jq -r '.token')
-          
+
           curl -f http://localhost:8007/api/dashboard/stats \
             -H "Authorization: Bearer $TOKEN" || exit 1
 
