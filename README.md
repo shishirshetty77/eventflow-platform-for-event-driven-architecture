@@ -313,10 +313,30 @@ type Dispatcher interface {
 }
 ```
 
-## 📚 Additional Documentation
+## 📚 Documentation
 
-- [Load Simulation & Metrics Generation](docs/LOAD_SIMULATION.md) - Learn how the platform generates simulated metrics and load
-- [Docker Deployment](DOCKER.md) - Detailed Docker deployment instructions
+Complete documentation is available in the [`documentation/`](documentation/) folder:
+
+| Document | Description |
+|----------|-------------|
+| [Architecture Overview](documentation/ARCHITECTURE.md) | System design, service mesh, and data flow diagrams |
+| [Deployment Guide](documentation/DEPLOYMENT.md) | Local, Docker, and AWS EC2 deployment instructions |
+| [API Reference](documentation/API_REFERENCE.md) | REST endpoints, WebSocket events, and error codes |
+| [Alert System](documentation/ALERTING.md) | Alert pipeline, thresholds, and notification channels |
+| [Load Simulation](documentation/LOAD_SIMULATION.md) | How metrics and load patterns are generated |
+| [Troubleshooting](documentation/TROUBLESHOOTING.md) | Common issues and solutions |
+
+### Quick Links
+
+```
+documentation/
+├── ARCHITECTURE.md      # System architecture with diagrams
+├── DEPLOYMENT.md        # Setup for local/Docker/EC2
+├── API_REFERENCE.md     # All REST and WebSocket APIs
+├── ALERTING.md          # Alert system deep dive
+├── LOAD_SIMULATION.md   # Metrics generation explained
+└── TROUBLESHOOTING.md   # Debug common issues
+```
 
 ## 📜 License
 

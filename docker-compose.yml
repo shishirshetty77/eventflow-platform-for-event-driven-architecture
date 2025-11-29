@@ -173,7 +173,7 @@ services:
         condition: service_healthy
     ports:
       - "8001:8080"
-      - "9101:9090"
+      - "9111:9090"
     environment:
       ENVIRONMENT: production
       SERVICE_NAME: auth
@@ -448,8 +448,8 @@ services:
       # JWT Configuration (CHANGE IN PRODUCTION!)
       JWT_SECRET: "${JWT_SECRET:-eventflow-super-secret-key-change-me-in-production}"
       JWT_EXPIRATION: "24"
-      # CORS Configuration
-      ALLOWED_ORIGINS: "http://localhost:3001,http://localhost:3000,http://dashboard:3000"
+      # CORS Configuration (add your EC2 IP here for cloud deployment)
+      ALLOWED_ORIGINS: "${ALLOWED_ORIGINS:-http://localhost:3001,http://localhost:3000,http://dashboard:3000}"
       LOG_LEVEL: info
       JAEGER_ENDPOINT: http://jaeger:14268/api/traces
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317

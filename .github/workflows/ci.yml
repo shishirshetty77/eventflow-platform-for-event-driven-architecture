@@ -1,4 +1,4 @@
-name: CI
+curl http://localhost:8007/api/healthname: CI
 
 on:
   push:
