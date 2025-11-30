@@ -1,11 +1,7 @@
-# Global configuration
 global:
-  # The external IP address of the EC2 instance or Load Balancer
-  # This is used for CORS and frontend API calls
   externalIp: "34.100.206.66"
-  environment: "development"
+  environment: "production"
 
-# Dashboard configuration
 dashboard:
   image: shishir77/eventflow-dashboard:latest
   replicas: 1
@@ -14,7 +10,6 @@ dashboard:
     port: 3000
     nodePort: 30000
 
-# UI Backend configuration
 uiBackend:
   image: shishir77/eventflow-ui-backend:latest
   replicas: 1
@@ -23,7 +18,6 @@ uiBackend:
     port: 8080
     nodePort: 30001
 
-# Auth Service configuration
 auth:
   image: shishir77/eventflow-auth:latest
   replicas: 1
@@ -31,7 +25,6 @@ auth:
     type: ClusterIP
     port: 8080
 
-# Orders Service configuration
 orders:
   image: shishir77/eventflow-orders:latest
   replicas: 1
@@ -39,7 +32,6 @@ orders:
     type: ClusterIP
     port: 8080
 
-# Payments Service configuration
 payments:
   image: shishir77/eventflow-payments:latest
   replicas: 1
@@ -47,7 +39,6 @@ payments:
     type: ClusterIP
     port: 8080
 
-# Notification Service configuration
 notification:
   image: shishir77/eventflow-notification:latest
   replicas: 1
@@ -55,7 +46,6 @@ notification:
     type: ClusterIP
     port: 8080
 
-# Analyzer Service configuration
 analyzer:
   image: shishir77/eventflow-analyzer:latest
   replicas: 1
@@ -63,7 +53,6 @@ analyzer:
     type: ClusterIP
     port: 8080
 
-# Alert Engine Service configuration
 alertEngine:
   image: shishir77/eventflow-alert-engine:latest
   replicas: 1
@@ -71,7 +60,6 @@ alertEngine:
     type: ClusterIP
     port: 8080
 
-# Prometheus configuration
 prometheus:
   image: prom/prometheus:v2.47.0
   replicas: 1
@@ -79,11 +67,9 @@ prometheus:
     type: ClusterIP
     port: 9090
 
-# Secrets configuration
 secrets:
   jwtSecret: "eventflow-super-secret-key-change-me-in-production"
   redisPassword: ""
   grafanaPassword: "admin"
 
-# Common configuration
 imagePullPolicy: Always
