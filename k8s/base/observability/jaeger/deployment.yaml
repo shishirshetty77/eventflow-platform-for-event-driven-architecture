@@ -24,7 +24,7 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5775
-              name: zk-compact-thrift
+              name: zk-compact
               protocol: UDP
             - containerPort: 6831
               name: jaeger-compact
