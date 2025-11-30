@@ -8,9 +8,9 @@ metadata:
     app.kubernetes.io/component: core
     app.kubernetes.io/part-of: eventflow-platform
 spec:
-  type: { { .Values.analyzer.service.type } }
+  type: {{ .Values.analyzer.service.type }}
   ports:
-    - port: { { .Values.analyzer.service.port } }
+    - port: {{ .Values.analyzer.service.port }}
       targetPort: http
       protocol: TCP
       name: http

@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/component: service
     app.kubernetes.io/part-of: eventflow-platform
 spec:
-  replicas: { { .Values.orders.replicas } }
+  replicas: {{ .Values.orders.replicas }}
   selector:
     matchLabels:
       app.kubernetes.io/name: orders
@@ -50,8 +50,8 @@ spec:
               memory: 32Mi
       containers:
         - name: orders
-          image: { { .Values.orders.image } }
-          imagePullPolicy: { { .Values.imagePullPolicy } }
+          image: {{ .Values.orders.image }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
           ports:
             - containerPort: 8080
               name: http

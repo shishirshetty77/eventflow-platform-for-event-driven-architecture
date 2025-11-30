@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/component: service
     app.kubernetes.io/part-of: eventflow-platform
 spec:
-  replicas: { { .Values.notification.replicas } }
+  replicas: {{ .Values.notification.replicas }}
   selector:
     matchLabels:
       app.kubernetes.io/name: notification
@@ -50,8 +50,8 @@ spec:
               memory: 32Mi
       containers:
         - name: notification
-          image: { { .Values.notification.image } }
-          imagePullPolicy: { { .Values.imagePullPolicy } }
+          image: {{ .Values.notification.image }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
           ports:
             - containerPort: 8080
               name: http
