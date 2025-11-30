@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-headless
+  namespace: eventflow
+  labels:
+    app.kubernetes.io/name: kafka
+    app.kubernetes.io/part-of: eventflow-platform
+spec:
+  ports:
+    - port: 9092
+      name: kafka-internal
+    - port: 29092
+      name: kafka-external
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: kafka
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  namespace: eventflow
+  labels:
+    app.kubernetes.io/name: kafka
+    app.kubernetes.io/part-of: eventflow-platform
+spec:
+  ports:
+    - port: 9092
+      name: kafka-internal
+      targetPort: 9092
+    - port: 29092
+      name: kafka-external
+      targetPort: 29092
+  selector:
+    app.kubernetes.io/name: kafka

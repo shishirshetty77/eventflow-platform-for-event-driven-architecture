@@ -1,0 +1,70 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: eventflow-ingress
+  namespace: eventflow
+  labels:
+    app.kubernetes.io/name: eventflow-ingress
+    app.kubernetes.io/part-of: eventflow-platform
+  annotations:
+    # Generic annotations that work with most ingress controllers
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # WebSocket support
+    nginx.ingress.kubernetes.io/websocket-services: "ui-backend"
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$request_uri"
+spec:
+  ingressClassName: nginx  # Override in GKE overlay
+  rules:
+    - host: eventflow.local  # Override in overlays for different environments
+      http:
+        paths:
+          # Dashboard - frontend
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dashboard
+                port:
+                  number: 3000
+          # API Backend
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: ui-backend
+                port:
+                  number: 8080
+          # WebSocket endpoint
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: ui-backend
+                port:
+                  number: 8080
+          # Grafana
+          - path: /grafana
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 3000
+          # Prometheus
+          - path: /prometheus
+            pathType: Prefix
+            backend:
+              service:
+                name: prometheus
+                port:
+                  number: 9090
+          # Jaeger
+          - path: /jaeger
+            pathType: Prefix
+            backend:
+              service:
+                name: jaeger
+                port:
+                  number: 16686

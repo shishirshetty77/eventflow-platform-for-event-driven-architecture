@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: eventflow-config
+  namespace: eventflow
+  labels:
+    app.kubernetes.io/name: eventflow
+    app.kubernetes.io/part-of: eventflow-platform
+data:
+  # Environment
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "info"
+  
+  # Kafka Configuration
+  KAFKA_BROKERS: "kafka-0.kafka-headless.eventflow.svc.cluster.local:9092"
+  KAFKA_METRICS_TOPIC: "service-metrics"
+  KAFKA_LOGS_TOPIC: "service-logs"
+  KAFKA_ALERTS_TOPIC: "alerts"
+  KAFKA_DLQ_TOPIC: "alerts-dlq"
+  
+  # Redis Configuration
+  REDIS_ADDR: "redis.eventflow.svc.cluster.local:6379"
+  REDIS_DB: "0"
+  
+  # Service Ports
+  HTTP_PORT: "8080"
+  METRICS_PORT: "9090"
+  
+  # Jaeger/Tracing
+  JAEGER_ENDPOINT: "http://jaeger.eventflow.svc.cluster.local:14268/api/traces"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger.eventflow.svc.cluster.local:4317"
+  
+  # Analyzer Thresholds
+  CPU_THRESHOLD: "80"
+  MEMORY_THRESHOLD: "85"
+  LATENCY_THRESHOLD: "500"
+  ERROR_RATE_THRESHOLD: "5"
+  ZSCORE_THRESHOLD: "3"
+  
+  # Alert Engine Settings
+  ALERT_SUPPRESSION_WINDOW: "300"
+  MAX_RETRY_ATTEMPTS: "3"
+  RETRY_BACKOFF_MS: "1000"
+  
+  # JWT Settings
+  JWT_EXPIRATION: "24"
+  
+  # CORS - Override in overlays for specific domains
+  ALLOWED_ORIGINS: "http://localhost:3001,http://dashboard.eventflow.svc.cluster.local:3000"
