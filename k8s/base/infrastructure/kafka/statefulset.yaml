@@ -52,6 +52,10 @@ spec:
           ports:
             - containerPort: 9092
               name: kafka-internal
+          command:
+            - /bin/sh
+            - -c
+            - sleep 3600
           env:
             - name: KAFKA_ZOOKEEPER_CONNECT
               value: "zookeeper.eventflow.svc.cluster.local:2181"
