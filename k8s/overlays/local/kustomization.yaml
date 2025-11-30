@@ -58,6 +58,17 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/memory
         value: "32Mi"
+  # Patch Dashboard API URL for local/EC2 access
+  - target:
+      kind: Deployment
+      name: dashboard
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/1/value
+        value: "http://34.100.206.66:8080"
+      - op: replace
+        path: /spec/template/spec/containers/0/env/2/value
+        value: "ws://34.100.206.66:8080/ws"
   # Override ConfigMap values for local
   - target:
       kind: ConfigMap
