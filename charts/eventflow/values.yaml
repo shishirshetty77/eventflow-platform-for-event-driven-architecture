@@ -31,6 +31,46 @@ auth:
     type: ClusterIP
     port: 8080
 
+# Orders Service configuration
+orders:
+  image: shishir77/eventflow-orders:latest
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 8080
+
+# Payments Service configuration
+payments:
+  image: shishir77/eventflow-payments:latest
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 8080
+
+# Notification Service configuration
+notification:
+  image: shishir77/eventflow-notification:latest
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 8080
+
+# Analyzer Service configuration
+analyzer:
+  image: shishir77/eventflow-analyzer:latest
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 8080
+
+# Alert Engine Service configuration
+alertEngine:
+  image: shishir77/eventflow-alert-engine:latest
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 8080
+
 # Secrets configuration
 secrets:
   jwtSecret: "eventflow-super-secret-key-change-me-in-production"
