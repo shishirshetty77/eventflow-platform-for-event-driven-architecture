@@ -69,6 +69,8 @@ spec:
               value: "1"
             - name: KAFKA_NUM_PARTITIONS
               value: "3"
+            - name: KAFKA_HEAP_OPTS
+              value: "-Xmx512M -Xms512M"
           resources:
             requests:
               cpu: 250m
@@ -92,7 +94,7 @@ spec:
             failureThreshold: 6
           volumeMounts:
             - name: data
-              mountPath: /bitnami/kafka
+              mountPath: /var/lib/kafka/data
       terminationGracePeriodSeconds: 60
   volumeClaimTemplates:
     - metadata:
