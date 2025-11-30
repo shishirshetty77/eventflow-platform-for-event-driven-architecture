@@ -27,7 +27,7 @@ spec:
         runAsNonRoot: true
       containers:
         - name: zookeeper
-          image: bitnami/zookeeper:3.8
+          image: bitnami/zookeeper:3.8.1-debian-11-r46
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 2181
