@@ -45,6 +45,7 @@ func main() {
 		zap.String("version", cfg.Version),
 		zap.String("environment", cfg.Environment),
 	)
+	// Triggering CI pipeline
 
 	// Initialize tracing
 	var tracer *tracing.Tracer
