@@ -58,6 +58,15 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/memory
         value: "32Mi"
+      - op: add
+        path: /spec/template/spec/securityContext
+        value: {}
+      - op: replace
+        path: /spec/template/spec/securityContext/runAsUser
+        value: 0
+      - op: replace
+        path: /spec/template/spec/securityContext/runAsNonRoot
+        value: false
   # Patch Dashboard API URL for local/EC2 access
   - target:
       kind: Deployment
