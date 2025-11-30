@@ -27,7 +27,7 @@ spec:
         runAsNonRoot: true
       containers:
         - name: zookeeper
-          image: bitnami/zookeeper:3.9.1
+          image: zookeeper:3.9
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 2181
@@ -37,16 +37,14 @@ spec:
             - containerPort: 3888
               name: election
           env:
-            - name: ALLOW_ANONYMOUS_LOGIN
-              value: "yes"
-            - name: ZOO_PORT_NUMBER
-              value: "2181"
-            - name: ZOO_TICK_TIME
-              value: "2000"
-            - name: ZOO_SYNC_LIMIT
-              value: "2"
+            - name: ZOO_MY_ID
+              value: "1"
+            - name: ZOO_SERVERS
+              value: "server.1=zookeeper-0.zookeeper-headless.eventflow.svc.cluster.local:2888:3888;2181"
             - name: ZOO_4LW_COMMANDS_WHITELIST
               value: "*"
+            - name: ZOO_CFG_EXTRA
+              value: "tickTime=2000 syncLimit=2 initLimit=5"
           resources:
             requests:
               cpu: 100m
@@ -76,7 +74,7 @@ spec:
             failureThreshold: 6
           volumeMounts:
             - name: data
-              mountPath: /bitnami/zookeeper
+              mountPath: /data
       terminationGracePeriodSeconds: 30
   volumeClaimTemplates:
     - metadata:
