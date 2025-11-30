@@ -79,7 +79,10 @@ patches:
             find /app/.next -type f -name "*.js" -exec sed -i "s|http://localhost:8007|http://34.100.206.66:8080|g" {} +
             find /app/.next -type f -name "*.js" -exec sed -i "s|ws://localhost:8007|ws://34.100.206.66:8080|g" {} +
             echo "Starting Next.js..."
-            npm start
+            ./node_modules/.bin/next start
+      - op: replace
+        path: /spec/template/spec/securityContext/runAsUser
+        value: 0
   # Override ConfigMap values for local
   - target:
       kind: ConfigMap
