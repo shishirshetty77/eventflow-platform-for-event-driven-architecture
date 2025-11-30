@@ -69,22 +69,26 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/env/2/value
         value: "ws://34.100.206.66:8080/ws"
-      - op: add
+      - op: replace
+        path: /spec/template/spec/containers/0/securityContext
+        value:
+          runAsUser: 0
+          allowPrivilegeEscalation: true
+          readOnlyRootFilesystem: false
+      - op: replace
         path: /spec/template/spec/containers/0/command
         value:
           - /bin/sh
           - -c
           - |
-            echo "Replacing API URL in static files..."
+            echo "User: $(id)"
+            echo "Dir: $(pwd)"
+            ls -la
+            echo "Replacing API URL..."
             find /app/.next -type f -name "*.js" -exec sed -i "s|http://localhost:8007|http://34.100.206.66:8080|g" {} +
             find /app/.next -type f -name "*.js" -exec sed -i "s|ws://localhost:8007|ws://34.100.206.66:8080|g" {} +
-            echo "Starting Next.js..."
-            ./node_modules/.bin/next start
-      - op: replace
-        path: /spec/template/spec/securityContext/runAsUser
-        value: 0
-      - op: remove
-        path: /spec/template/spec/securityContext/runAsNonRoot
+            echo "Starting..."
+            npm start
   # Override ConfigMap values for local
   - target:
       kind: ConfigMap
