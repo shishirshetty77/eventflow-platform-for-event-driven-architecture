@@ -47,7 +47,7 @@ spec:
               memory: 32Mi
       containers:
         - name: kafka
-          image: bitnami/kafka:3.6.0
+          image: bitnami/kafka:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9092
