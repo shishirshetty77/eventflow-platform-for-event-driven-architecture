@@ -1,0 +1,85 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+namePrefix: ""
+nameSuffix: ""
+
+# GKE specific configurations
+commonLabels:
+  environment: gke
+  cloud-provider: gcp
+
+# Patches for GKE environment
+patches:
+  # Use GKE standard-rwo StorageClass (works with PD-Balanced)
+  - target:
+      kind: StatefulSet
+      name: zookeeper
+    patch: |-
+      - op: add
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
+        value: standard-rwo
+  - target:
+      kind: StatefulSet
+      name: kafka
+    patch: |-
+      - op: add
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
+        value: standard-rwo
+  - target:
+      kind: StatefulSet
+      name: redis
+    patch: |-
+      - op: add
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
+        value: standard-rwo
+  # Update Ingress for GKE (use GCE ingress class or nginx)
+  - target:
+      kind: Ingress
+      name: eventflow-ingress
+    patch: |-
+      - op: replace
+        path: /spec/ingressClassName
+        value: nginx
+      - op: replace
+        path: /spec/rules/0/host
+        value: eventflow.example.com
+      - op: add
+        path: /metadata/annotations/kubernetes.io~1ingress.class
+        value: nginx
+  # Increase resources for GKE (production-like)
+  - target:
+      kind: StatefulSet
+      name: kafka
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "500m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "1Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "2000m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "2Gi"
+
+# ConfigMap overrides for GKE
+configMapGenerator:
+  - name: eventflow-config
+    behavior: merge
+    literals:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=info
+      - ALLOWED_ORIGINS=https://eventflow.example.com,http://eventflow.example.com
+
+# Secret overrides (use external secrets in production)
+# secretGenerator:
+#   - name: eventflow-secrets
+#     behavior: merge
+#     literals:
+#       - JWT_SECRET=your-production-secret

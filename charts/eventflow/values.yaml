@@ -1,0 +1,75 @@
+global:
+  externalIp: "34.100.206.66"
+  environment: "production"
+
+dashboard:
+  image: shishir77/eventflow-dashboard:latest
+  replicas: 1
+  service:
+    type: NodePort
+    port: 3000
+    nodePort: 30000
+
+uiBackend:
+  image: shishir77/eventflow-ui-backend:latest
+  replicas: 1
+  service:
+    type: NodePort
+    port: 8080
+    nodePort: 30001
+
+auth:
+  image: shishir77/eventflow-auth:latest
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 8080
+
+orders:
+  image: shishir77/eventflow-orders:latest
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 8080
+
+payments:
+  image: shishir77/eventflow-payments:latest
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 8080
+
+notification:
+  image: shishir77/eventflow-notification:latest
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 8080
+
+analyzer:
+  image: shishir77/eventflow-analyzer:latest
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 8080
+
+alertEngine:
+  image: shishir77/eventflow-alert-engine:latest
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 8080
+
+prometheus:
+  image: prom/prometheus:v2.47.0
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 9090
+
+secrets:
+  jwtSecret: "eventflow-super-secret-key-change-me-in-production"
+  redisPassword: ""
+  grafanaPassword: "admin"
+
+imagePullPolicy: Always

@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: payments
+  namespace: eventflow
+  labels:
+    app.kubernetes.io/name: payments
+    app.kubernetes.io/component: service
+    app.kubernetes.io/part-of: eventflow-platform
+spec:
+  type: {{ .Values.payments.service.type }}
+  ports:
+    - port: {{ .Values.payments.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: 9090
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+  selector:
+    app.kubernetes.io/name: payments

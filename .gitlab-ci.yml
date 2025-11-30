@@ -1,0 +1,508 @@
+# =============================================================================
+# EventFlow Platform - GitLab CI/CD Pipeline
+# Smart build: Only builds changed services, keeps last 3 Docker tags
+# =============================================================================
+
+stages:
+  - detect
+  - lint
+  - build
+  - test
+  - docker
+  - cleanup
+
+variables:
+  GO_VERSION: "1.21"
+  NODE_VERSION: "20"
+  DOCKER_USERNAME: shishir77
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+
+# =============================================================================
+# DETECT CHANGED SERVICES
+# =============================================================================
+detect-changes:
+  stage: detect
+  image: alpine:3.19
+  script:
+    - apk add --no-cache git
+    - |
+      # Get changed files
+      if [ -n "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" ]; then
+        git fetch origin $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+        CHANGED_FILES=$(git diff --name-only origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME..HEAD)
+      else
+        CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || git ls-files)
+      fi
+      
+      echo "Changed files:"
+      echo "$CHANGED_FILES"
+      
+      # Check each service and write to dotenv file
+      echo "AUTH_CHANGED=$([[ \"$CHANGED_FILES\" == *\"services/auth\"* ]] && echo true || echo false)" >> changes.env
+      echo "ORDERS_CHANGED=$([[ \"$CHANGED_FILES\" == *\"services/orders\"* ]] && echo true || echo false)" >> changes.env
+      echo "PAYMENTS_CHANGED=$([[ \"$CHANGED_FILES\" == *\"services/payments\"* ]] && echo true || echo false)" >> changes.env
+      echo "NOTIFICATION_CHANGED=$([[ \"$CHANGED_FILES\" == *\"services/notification\"* ]] && echo true || echo false)" >> changes.env
+      echo "ANALYZER_CHANGED=$([[ \"$CHANGED_FILES\" == *\"services/analyzer\"* ]] && echo true || echo false)" >> changes.env
+      echo "ALERT_ENGINE_CHANGED=$([[ \"$CHANGED_FILES\" == *\"services/alert-engine\"* ]] && echo true || echo false)" >> changes.env
+      echo "UI_BACKEND_CHANGED=$([[ \"$CHANGED_FILES\" == *\"services/ui-backend\"* ]] && echo true || echo false)" >> changes.env
+      echo "DASHBOARD_CHANGED=$([[ \"$CHANGED_FILES\" == *\"dashboard\"* ]] && echo true || echo false)" >> changes.env
+      echo "SHARED_CHANGED=$([[ \"$CHANGED_FILES\" == *\"pkg/shared\"* ]] && echo true || echo false)" >> changes.env
+      
+      # Check if any service changed
+      if [[ "$CHANGED_FILES" == *"services/"* ]] || [[ "$CHANGED_FILES" == *"dashboard/"* ]] || [[ "$CHANGED_FILES" == *"pkg/shared"* ]]; then
+        echo "ANY_SERVICE_CHANGED=true" >> changes.env
+      else
+        echo "ANY_SERVICE_CHANGED=false" >> changes.env
+      fi
+      
+      cat changes.env
+  artifacts:
+    reports:
+      dotenv: changes.env
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev" || $CI_MERGE_REQUEST_ID
+
+# =============================================================================
+# GO LINT & SECURITY
+# =============================================================================
+go-lint:
+  stage: lint
+  image: golang:${GO_VERSION}-alpine
+  needs:
+    - job: detect-changes
+      artifacts: true
+  before_script:
+    - apk add --no-cache git
+    - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+  script:
+    - |
+      if [ "$ANY_SERVICE_CHANGED" != "true" ]; then
+        echo "No service changes detected, skipping lint"
+        exit 0
+      fi
+    - cd pkg/shared && golangci-lint run --timeout=5m ./... || true
+    - |
+      for service in auth orders payments notification analyzer alert-engine ui-backend; do
+        echo "=========================================="
+        echo "Linting $service..."
+        echo "=========================================="
+        cd $CI_PROJECT_DIR/services/$service
+        golangci-lint run --timeout=5m ./... || true
+      done
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev" || $CI_MERGE_REQUEST_ID
+  allow_failure: true
+
+# =============================================================================
+# GO BUILD
+# =============================================================================
+go-build:
+  stage: build
+  image: golang:${GO_VERSION}-alpine
+  needs:
+    - job: detect-changes
+      artifacts: true
+  before_script:
+    - apk add --no-cache git
+  script:
+    - |
+      if [ "$ANY_SERVICE_CHANGED" != "true" ]; then
+        echo "No service changes detected, skipping build"
+        exit 0
+      fi
+    - cd pkg/shared && go build ./...
+    - |
+      for service in auth orders payments notification analyzer alert-engine ui-backend; do
+        echo "=========================================="
+        echo "Building $service..."
+        echo "=========================================="
+        cd $CI_PROJECT_DIR/services/$service
+        mkdir -p bin
+        go build -v -o bin/$service ./cmd/main.go
+      done
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev" || $CI_MERGE_REQUEST_ID
+
+# =============================================================================
+# GO TEST
+# =============================================================================
+go-test:
+  stage: test
+  image: golang:${GO_VERSION}-alpine
+  needs:
+    - job: detect-changes
+      artifacts: true
+    - job: go-build
+  before_script:
+    - apk add --no-cache git
+  script:
+    - |
+      if [ "$ANY_SERVICE_CHANGED" != "true" ]; then
+        echo "No service changes detected, skipping tests"
+        exit 0
+      fi
+    - cd pkg/shared && go test -v -race ./... || true
+    - |
+      for service in auth orders payments notification analyzer alert-engine ui-backend; do
+        echo "=========================================="
+        echo "Testing $service..."
+        echo "=========================================="
+        cd $CI_PROJECT_DIR/services/$service
+        go test -v -race ./... || true
+      done
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev" || $CI_MERGE_REQUEST_ID
+  allow_failure: true
+
+# =============================================================================
+# DASHBOARD BUILD (Next.js)
+# =============================================================================
+dashboard-build:
+  stage: build
+  image: node:${NODE_VERSION}-alpine
+  needs:
+    - job: detect-changes
+      artifacts: true
+  script:
+    - |
+      if [ "$DASHBOARD_CHANGED" != "true" ]; then
+        echo "No dashboard changes detected, skipping build"
+        exit 0
+      fi
+    - cd dashboard
+    - npm ci
+    - npm run lint || true
+    - npm run build
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev" || $CI_MERGE_REQUEST_ID
+
+# =============================================================================
+# DOCKER BUILD & PUSH - AUTH
+# =============================================================================
+docker-auth:
+  stage: docker
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  needs:
+    - job: detect-changes
+      artifacts: true
+    - job: go-build
+  variables:
+    SHORT_SHA: ${CI_COMMIT_SHORT_SHA}
+  before_script:
+    - docker login -u $DOCKER_USERNAME -p $DOCKERHUB_TOKEN
+    - docker buildx create --name multiarch --driver docker-container --use || true
+    - docker buildx inspect --bootstrap
+  script:
+    - |
+      if [ "$AUTH_CHANGED" != "true" ] && [ "$SHARED_CHANGED" != "true" ]; then
+        echo "No changes to auth service, skipping"
+        exit 0
+      fi
+    - |
+      docker buildx build --platform linux/amd64,linux/arm64 \
+        -t $DOCKER_USERNAME/eventflow-auth:latest \
+        -t $DOCKER_USERNAME/eventflow-auth:$SHORT_SHA \
+        -f ./services/auth/Dockerfile \
+        --push .
+  rules:
+    - if: ($CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev") && $CI_PIPELINE_SOURCE != "merge_request_event"
+
+# =============================================================================
+# DOCKER BUILD & PUSH - ORDERS
+# =============================================================================
+docker-orders:
+  stage: docker
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  needs:
+    - job: detect-changes
+      artifacts: true
+    - job: go-build
+  variables:
+    SHORT_SHA: ${CI_COMMIT_SHORT_SHA}
+  before_script:
+    - docker login -u $DOCKER_USERNAME -p $DOCKERHUB_TOKEN
+    - docker buildx create --name multiarch --driver docker-container --use || true
+    - docker buildx inspect --bootstrap
+  script:
+    - |
+      if [ "$ORDERS_CHANGED" != "true" ] && [ "$SHARED_CHANGED" != "true" ]; then
+        echo "No changes to orders service, skipping"
+        exit 0
+      fi
+    - |
+      docker buildx build --platform linux/amd64,linux/arm64 \
+        -t $DOCKER_USERNAME/eventflow-orders:latest \
+        -t $DOCKER_USERNAME/eventflow-orders:$SHORT_SHA \
+        -f ./services/orders/Dockerfile \
+        --push .
+  rules:
+    - if: ($CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev") && $CI_PIPELINE_SOURCE != "merge_request_event"
+
+# =============================================================================
+# DOCKER BUILD & PUSH - PAYMENTS
+# =============================================================================
+docker-payments:
+  stage: docker
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  needs:
+    - job: detect-changes
+      artifacts: true
+    - job: go-build
+  variables:
+    SHORT_SHA: ${CI_COMMIT_SHORT_SHA}
+  before_script:
+    - docker login -u $DOCKER_USERNAME -p $DOCKERHUB_TOKEN
+    - docker buildx create --name multiarch --driver docker-container --use || true
+    - docker buildx inspect --bootstrap
+  script:
+    - |
+      if [ "$PAYMENTS_CHANGED" != "true" ] && [ "$SHARED_CHANGED" != "true" ]; then
+        echo "No changes to payments service, skipping"
+        exit 0
+      fi
+    - |
+      docker buildx build --platform linux/amd64,linux/arm64 \
+        -t $DOCKER_USERNAME/eventflow-payments:latest \
+        -t $DOCKER_USERNAME/eventflow-payments:$SHORT_SHA \
+        -f ./services/payments/Dockerfile \
+        --push .
+  rules:
+    - if: ($CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev") && $CI_PIPELINE_SOURCE != "merge_request_event"
+
+# =============================================================================
+# DOCKER BUILD & PUSH - NOTIFICATION
+# =============================================================================
+docker-notification:
+  stage: docker
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  needs:
+    - job: detect-changes
+      artifacts: true
+    - job: go-build
+  variables:
+    SHORT_SHA: ${CI_COMMIT_SHORT_SHA}
+  before_script:
+    - docker login -u $DOCKER_USERNAME -p $DOCKERHUB_TOKEN
+    - docker buildx create --name multiarch --driver docker-container --use || true
+    - docker buildx inspect --bootstrap
+  script:
+    - |
+      if [ "$NOTIFICATION_CHANGED" != "true" ] && [ "$SHARED_CHANGED" != "true" ]; then
+        echo "No changes to notification service, skipping"
+        exit 0
+      fi
+    - |
+      docker buildx build --platform linux/amd64,linux/arm64 \
+        -t $DOCKER_USERNAME/eventflow-notification:latest \
+        -t $DOCKER_USERNAME/eventflow-notification:$SHORT_SHA \
+        -f ./services/notification/Dockerfile \
+        --push .
+  rules:
+    - if: ($CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev") && $CI_PIPELINE_SOURCE != "merge_request_event"
+
+# =============================================================================
+# DOCKER BUILD & PUSH - ANALYZER
+# =============================================================================
+docker-analyzer:
+  stage: docker
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  needs:
+    - job: detect-changes
+      artifacts: true
+    - job: go-build
+  variables:
+    SHORT_SHA: ${CI_COMMIT_SHORT_SHA}
+  before_script:
+    - docker login -u $DOCKER_USERNAME -p $DOCKERHUB_TOKEN
+    - docker buildx create --name multiarch --driver docker-container --use || true
+    - docker buildx inspect --bootstrap
+  script:
+    - |
+      if [ "$ANALYZER_CHANGED" != "true" ] && [ "$SHARED_CHANGED" != "true" ]; then
+        echo "No changes to analyzer service, skipping"
+        exit 0
+      fi
+    - |
+      docker buildx build --platform linux/amd64,linux/arm64 \
+        -t $DOCKER_USERNAME/eventflow-analyzer:latest \
+        -t $DOCKER_USERNAME/eventflow-analyzer:$SHORT_SHA \
+        -f ./services/analyzer/Dockerfile \
+        --push .
+  rules:
+    - if: ($CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev") && $CI_PIPELINE_SOURCE != "merge_request_event"
+
+# =============================================================================
+# DOCKER BUILD & PUSH - ALERT ENGINE
+# =============================================================================
+docker-alert-engine:
+  stage: docker
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  needs:
+    - job: detect-changes
+      artifacts: true
+    - job: go-build
+  variables:
+    SHORT_SHA: ${CI_COMMIT_SHORT_SHA}
+  before_script:
+    - docker login -u $DOCKER_USERNAME -p $DOCKERHUB_TOKEN
+    - docker buildx create --name multiarch --driver docker-container --use || true
+    - docker buildx inspect --bootstrap
+  script:
+    - |
+      if [ "$ALERT_ENGINE_CHANGED" != "true" ] && [ "$SHARED_CHANGED" != "true" ]; then
+        echo "No changes to alert-engine service, skipping"
+        exit 0
+      fi
+    - |
+      docker buildx build --platform linux/amd64,linux/arm64 \
+        -t $DOCKER_USERNAME/eventflow-alert-engine:latest \
+        -t $DOCKER_USERNAME/eventflow-alert-engine:$SHORT_SHA \
+        -f ./services/alert-engine/Dockerfile \
+        --push .
+  rules:
+    - if: ($CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev") && $CI_PIPELINE_SOURCE != "merge_request_event"
+
+# =============================================================================
+# DOCKER BUILD & PUSH - UI BACKEND
+# =============================================================================
+docker-ui-backend:
+  stage: docker
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  needs:
+    - job: detect-changes
+      artifacts: true
+    - job: go-build
+  variables:
+    SHORT_SHA: ${CI_COMMIT_SHORT_SHA}
+  before_script:
+    - docker login -u $DOCKER_USERNAME -p $DOCKERHUB_TOKEN
+    - docker buildx create --name multiarch --driver docker-container --use || true
+    - docker buildx inspect --bootstrap
+  script:
+    - |
+      if [ "$UI_BACKEND_CHANGED" != "true" ] && [ "$SHARED_CHANGED" != "true" ]; then
+        echo "No changes to ui-backend service, skipping"
+        exit 0
+      fi
+    - |
+      docker buildx build --platform linux/amd64,linux/arm64 \
+        -t $DOCKER_USERNAME/eventflow-ui-backend:latest \
+        -t $DOCKER_USERNAME/eventflow-ui-backend:$SHORT_SHA \
+        -f ./services/ui-backend/Dockerfile \
+        --push .
+  rules:
+    - if: ($CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev") && $CI_PIPELINE_SOURCE != "merge_request_event"
+
+# =============================================================================
+# DOCKER BUILD & PUSH - DASHBOARD
+# =============================================================================
+docker-dashboard:
+  stage: docker
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  needs:
+    - job: detect-changes
+      artifacts: true
+    - job: dashboard-build
+      optional: true
+  variables:
+    SHORT_SHA: ${CI_COMMIT_SHORT_SHA}
+  before_script:
+    - docker login -u $DOCKER_USERNAME -p $DOCKERHUB_TOKEN
+    - docker buildx create --name multiarch --driver docker-container --use || true
+    - docker buildx inspect --bootstrap
+  script:
+    - |
+      if [ "$DASHBOARD_CHANGED" != "true" ]; then
+        echo "No changes to dashboard, skipping"
+        exit 0
+      fi
+    - |
+      docker buildx build --platform linux/amd64,linux/arm64 \
+        -t $DOCKER_USERNAME/eventflow-dashboard:latest \
+        -t $DOCKER_USERNAME/eventflow-dashboard:$SHORT_SHA \
+        -f ./dashboard/Dockerfile \
+        --push ./dashboard
+  rules:
+    - if: ($CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev") && $CI_PIPELINE_SOURCE != "merge_request_event"
+
+# =============================================================================
+# CLEANUP OLD DOCKER IMAGES (Keep Last 3)
+# =============================================================================
+cleanup-old-images:
+  stage: cleanup
+  image: alpine:3.19
+  needs:
+    - job: docker-auth
+      optional: true
+    - job: docker-orders
+      optional: true
+    - job: docker-payments
+      optional: true
+    - job: docker-notification
+      optional: true
+    - job: docker-analyzer
+      optional: true
+    - job: docker-alert-engine
+      optional: true
+    - job: docker-ui-backend
+      optional: true
+    - job: docker-dashboard
+      optional: true
+  before_script:
+    - apk add --no-cache curl jq
+  script:
+    - |
+      cleanup_repo() {
+        REPO=$1
+        echo "Cleaning up old tags for $REPO..."
+        
+        # Get auth token
+        TOKEN=$(curl -s -H "Content-Type: application/json" -X POST \
+          -d "{\"username\": \"$DOCKER_USERNAME\", \"password\": \"$DOCKERHUB_TOKEN\"}" \
+          https://hub.docker.com/v2/users/login/ | jq -r .token)
+        
+        if [ "$TOKEN" == "null" ] || [ -z "$TOKEN" ]; then
+          echo "Failed to authenticate for $REPO"
+          return
+        fi
+        
+        # Get all tags (excluding 'latest'), sort by date, keep last 3
+        TAGS=$(curl -s -H "Authorization: Bearer $TOKEN" \
+          "https://hub.docker.com/v2/repositories/$DOCKER_USERNAME/$REPO/tags?page_size=100" \
+          | jq -r '.results | map(select(.name != "latest")) | sort_by(.last_updated) | reverse | .[3:] | .[].name')
+        
+        # Delete old tags
+        for TAG in $TAGS; do
+          echo "Deleting $REPO:$TAG"
+          curl -s -X DELETE \
+            -H "Authorization: Bearer $TOKEN" \
+            "https://hub.docker.com/v2/repositories/$DOCKER_USERNAME/$REPO/tags/$TAG/" || true
+        done
+      }
+      
+      # Cleanup each repository
+      for repo in eventflow-auth eventflow-orders eventflow-payments eventflow-notification eventflow-analyzer eventflow-alert-engine eventflow-ui-backend eventflow-dashboard; do
+        cleanup_repo $repo
+      done
+      
+      echo "Cleanup complete!"
+  rules:
+    - if: ($CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev") && $CI_PIPELINE_SOURCE != "merge_request_event"
+  allow_failure: true

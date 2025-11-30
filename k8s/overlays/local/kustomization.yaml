@@ -1,0 +1,114 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+namePrefix: ""
+nameSuffix: ""
+
+# Local/Kind specific configurations
+labels:
+  - pairs:
+      environment: local
+
+# Patches for local environment
+patches:
+  # Use standard StorageClass for Kind
+  - target:
+      kind: StatefulSet
+      name: zookeeper
+    patch: |-
+      - op: add
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
+        value: standard
+  - target:
+      kind: StatefulSet
+      name: kafka
+    patch: |-
+      - op: add
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
+        value: standard
+  - target:
+      kind: StatefulSet
+      name: redis
+    patch: |-
+      - op: add
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
+        value: standard
+  # Update Ingress for local environment
+  - target:
+      kind: Ingress
+      name: eventflow-ingress
+    patch: |-
+      - op: replace
+        path: /spec/ingressClassName
+        value: nginx
+      - op: replace
+        path: /spec/rules/0/host
+        value: eventflow.local
+  # Reduce resource requests for local development
+  - target:
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/part-of=eventflow-platform"
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "25m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "32Mi"
+      - op: add
+        path: /spec/template/spec/securityContext
+        value: {}
+      - op: replace
+        path: /spec/template/spec/securityContext/runAsUser
+        value: 0
+      - op: replace
+        path: /spec/template/spec/securityContext/runAsNonRoot
+        value: false
+  # Patch Dashboard API URL for local/EC2 access
+  - target:
+      kind: Deployment
+      name: dashboard
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/1/value
+        value: "http://34.100.206.66:8080"
+      - op: replace
+        path: /spec/template/spec/containers/0/env/2/value
+        value: "ws://34.100.206.66:8080/ws"
+      - op: replace
+        path: /spec/template/spec/containers/0/securityContext
+        value:
+          runAsUser: 0
+          allowPrivilegeEscalation: true
+          readOnlyRootFilesystem: false
+      - op: replace
+        path: /spec/template/spec/containers/0/command
+        value:
+          - /bin/sh
+          - -c
+          - |
+            echo "User: $(id)"
+            echo "Dir: $(pwd)"
+            ls -la
+            echo "Replacing API URL..."
+            find /app/.next -type f -name "*.js" -exec sed -i "s|http://localhost:8007|http://34.100.206.66:8080|g" {} +
+            find /app/.next -type f -name "*.js" -exec sed -i "s|ws://localhost:8007|ws://34.100.206.66:8080|g" {} +
+            echo "Starting with node server.js..."
+            node server.js
+  # Override ConfigMap values for local
+  - target:
+      kind: ConfigMap
+      name: eventflow-config
+    patch: |-
+      - op: replace
+        path: /data/ENVIRONMENT
+        value: "development"
+      - op: replace
+        path: /data/LOG_LEVEL
+        value: "debug"
+      - op: replace
+        path: /data/ALLOWED_ORIGINS
+        value: "http://localhost:3001,http://eventflow.local,http://127.0.0.1:3001,http://34.100.206.66:3000,http://34.100.206.66:3001"
