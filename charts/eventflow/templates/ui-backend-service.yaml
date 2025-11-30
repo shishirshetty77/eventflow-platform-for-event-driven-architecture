@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ui-backend
+  namespace: eventflow
+  labels:
+    app.kubernetes.io/name: ui-backend
+    app.kubernetes.io/component: core
+    app.kubernetes.io/part-of: eventflow-platform
+spec:
+  type: {{ .Values.uiBackend.service.type }}
+  ports:
+    - port: {{ .Values.uiBackend.service.port }}
+      targetPort: 8080
+      nodePort: {{ .Values.uiBackend.service.nodePort }}
+      name: http
+  selector:
+    app.kubernetes.io/name: ui-backend
