@@ -71,4 +71,4 @@ patches:
         value: "debug"
       - op: replace
         path: /data/ALLOWED_ORIGINS
-        value: "http://localhost:3001,http://eventflow.local,http://127.0.0.1:3001"
+        value: "http://localhost:3001,http://eventflow.local,http://127.0.0.1:3001,http://34.100.206.66:3000,http://34.100.206.66:3001"

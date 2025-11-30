@@ -46,4 +46,4 @@ data:
   JWT_EXPIRATION: "24"
   
   # CORS - Override in overlays for specific domains
-  ALLOWED_ORIGINS: "http://localhost:3001,http://dashboard.eventflow.svc.cluster.local:3000"
+  ALLOWED_ORIGINS: "http://localhost:3001,http://dashboard.eventflow.svc.cluster.local:3000,http://34.100.206.66:3000,http://34.100.206.66:3001"
