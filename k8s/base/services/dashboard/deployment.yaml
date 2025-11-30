@@ -46,8 +46,8 @@ spec:
               memory: 32Mi
       containers:
         - name: dashboard
-          image: eventflow/dashboard:latest
-          imagePullPolicy: IfNotPresent
+          image: shishir77/eventflow-dashboard:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 3000
               name: http

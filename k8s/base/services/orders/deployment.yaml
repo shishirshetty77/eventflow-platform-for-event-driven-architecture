@@ -50,8 +50,8 @@ spec:
               memory: 32Mi
       containers:
         - name: orders
-          image: eventflow/orders:latest
-          imagePullPolicy: IfNotPresent
+          image: shishir77/eventflow-orders:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
               name: http

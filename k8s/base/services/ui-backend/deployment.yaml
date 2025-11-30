@@ -57,8 +57,8 @@ spec:
               memory: 32Mi
       containers:
         - name: ui-backend
-          image: eventflow/ui-backend:latest
-          imagePullPolicy: IfNotPresent
+          image: shishir77/eventflow-ui-backend:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
               name: http

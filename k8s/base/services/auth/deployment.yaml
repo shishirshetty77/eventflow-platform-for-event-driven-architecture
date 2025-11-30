@@ -50,8 +50,8 @@ spec:
               memory: 32Mi
       containers:
         - name: auth
-          image: eventflow/auth:latest
-          imagePullPolicy: IfNotPresent
+          image: shishir77/eventflow-auth:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
               name: http

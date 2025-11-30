@@ -57,8 +57,8 @@ spec:
               memory: 32Mi
       containers:
         - name: alert-engine
-          image: eventflow/alert-engine:latest
-          imagePullPolicy: IfNotPresent
+          image: shishir77/eventflow-alert-engine:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
               name: http
