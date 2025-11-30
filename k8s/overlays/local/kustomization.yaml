@@ -83,6 +83,8 @@ patches:
       - op: replace
         path: /spec/template/spec/securityContext/runAsUser
         value: 0
+      - op: remove
+        path: /spec/template/spec/securityContext/runAsNonRoot
   # Override ConfigMap values for local
   - target:
       kind: ConfigMap
