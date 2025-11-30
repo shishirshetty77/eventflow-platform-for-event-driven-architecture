@@ -61,8 +61,6 @@ spec:
               /etc/confluent/docker/configure || { echo "Configure failed"; exit 1; }
               echo "Starting ensure..."
               /etc/confluent/docker/ensure || { echo "Ensure failed"; exit 1; }
-              echo "Symlinking..."
-              ln -sf /etc/kafka/server.properties /etc/kafka/kafka.properties
               echo "Launching..."
               /etc/confluent/docker/launch
           env:
