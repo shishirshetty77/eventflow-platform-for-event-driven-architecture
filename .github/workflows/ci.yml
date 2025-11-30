@@ -2,21 +2,79 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
 
 env:
   GO_VERSION: '1.21'
   NODE_VERSION: '20'
+  DOCKER_USERNAME: shishir77
+  REGISTRY: docker.io
 
 jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # DETECT CHANGED SERVICES
+  # ═══════════════════════════════════════════════════════════════════════════
+  detect-changes:
+    name: Detect Changed Services
+    runs-on: ubuntu-latest
+    outputs:
+      auth: ${{ steps.changes.outputs.auth }}
+      orders: ${{ steps.changes.outputs.orders }}
+      payments: ${{ steps.changes.outputs.payments }}
+      notification: ${{ steps.changes.outputs.notification }}
+      analyzer: ${{ steps.changes.outputs.analyzer }}
+      alert-engine: ${{ steps.changes.outputs.alert-engine }}
+      ui-backend: ${{ steps.changes.outputs.ui-backend }}
+      dashboard: ${{ steps.changes.outputs.dashboard }}
+      shared: ${{ steps.changes.outputs.shared }}
+      any_service: ${{ steps.changes.outputs.any_service }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect file changes
+        id: changes
+        run: |
+          # Get changed files
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }})
+          else
+            CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} 2>/dev/null || git diff --name-only HEAD~1 HEAD)
+          fi
+          
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          
+          # Check each service
+          echo "auth=$([[ "$CHANGED_FILES" == *"services/auth"* ]] && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "orders=$([[ "$CHANGED_FILES" == *"services/orders"* ]] && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "payments=$([[ "$CHANGED_FILES" == *"services/payments"* ]] && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "notification=$([[ "$CHANGED_FILES" == *"services/notification"* ]] && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "analyzer=$([[ "$CHANGED_FILES" == *"services/analyzer"* ]] && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "alert-engine=$([[ "$CHANGED_FILES" == *"services/alert-engine"* ]] && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "ui-backend=$([[ "$CHANGED_FILES" == *"services/ui-backend"* ]] && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "dashboard=$([[ "$CHANGED_FILES" == *"dashboard"* ]] && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "shared=$([[ "$CHANGED_FILES" == *"pkg/shared"* ]] && echo true || echo false)" >> $GITHUB_OUTPUT
+          
+          # Check if any service changed
+          if [[ "$CHANGED_FILES" == *"services/"* ]] || [[ "$CHANGED_FILES" == *"dashboard/"* ]] || [[ "$CHANGED_FILES" == *"pkg/shared"* ]]; then
+            echo "any_service=true" >> $GITHUB_OUTPUT
+          else
+            echo "any_service=false" >> $GITHUB_OUTPUT
+          fi
+
   # ═══════════════════════════════════════════════════════════════════════════
   # GO LINT & SECURITY
   # ═══════════════════════════════════════════════════════════════════════════
   go-lint:
     name: Go Lint & Security
     runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.any_service == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -78,6 +136,8 @@ jobs:
   go-build:
     name: Go Build
     runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.any_service == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -108,6 +168,8 @@ jobs:
   go-test:
     name: Go Test
     runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.any_service == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -135,6 +197,8 @@ jobs:
   dashboard:
     name: Dashboard (Next.js)
     runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.dashboard == 'true'
     defaults:
       run:
         working-directory: ./dashboard
@@ -190,34 +254,214 @@ jobs:
         run: docker compose -f docker-compose.lite.yml config -q || true
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # DOCKER BUILD
+  # DOCKER BUILD & PUSH (Only Changed Services)
   # ═══════════════════════════════════════════════════════════════════════════
   docker-build:
-    name: Docker Build
+    name: Docker Build & Push
     runs-on: ubuntu-latest
-    needs: [go-build, dashboard]
+    needs: [detect-changes, go-build]
+    if: |
+      always() && 
+      github.event_name == 'push' && 
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') &&
+      needs.detect-changes.outputs.any_service == 'true' &&
+      (needs.go-build.result == 'success' || needs.go-build.result == 'skipped')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build all service images
-        run: |
-          for service in auth orders payments notification analyzer alert-engine ui-backend; do
-            echo "=========================================="
-            echo "Building Docker image for $service..."
-            echo "=========================================="
-            docker build -t eventflow-$service:ci -f services/$service/Dockerfile .
-          done
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build dashboard image
+      - name: Generate version tag
+        id: version
         run: |
-          docker build -t eventflow-dashboard:ci \
-            --build-arg NEXT_PUBLIC_API_URL=http://localhost:8007 \
-            --build-arg NEXT_PUBLIC_WS_URL=ws://localhost:8007 \
-            -f dashboard/Dockerfile ./dashboard
+          # Use short commit SHA as version
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          echo "sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+          echo "Version: $SHORT_SHA"
+
+      # Build and push Auth service
+      - name: Build & Push Auth
+        if: needs.detect-changes.outputs.auth == 'true' || needs.detect-changes.outputs.shared == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./services/auth/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.DOCKER_USERNAME }}/eventflow-auth:latest
+            ${{ env.DOCKER_USERNAME }}/eventflow-auth:${{ steps.version.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Build and push Orders service
+      - name: Build & Push Orders
+        if: needs.detect-changes.outputs.orders == 'true' || needs.detect-changes.outputs.shared == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./services/orders/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.DOCKER_USERNAME }}/eventflow-orders:latest
+            ${{ env.DOCKER_USERNAME }}/eventflow-orders:${{ steps.version.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Build and push Payments service
+      - name: Build & Push Payments
+        if: needs.detect-changes.outputs.payments == 'true' || needs.detect-changes.outputs.shared == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./services/payments/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.DOCKER_USERNAME }}/eventflow-payments:latest
+            ${{ env.DOCKER_USERNAME }}/eventflow-payments:${{ steps.version.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Build and push Notification service
+      - name: Build & Push Notification
+        if: needs.detect-changes.outputs.notification == 'true' || needs.detect-changes.outputs.shared == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./services/notification/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.DOCKER_USERNAME }}/eventflow-notification:latest
+            ${{ env.DOCKER_USERNAME }}/eventflow-notification:${{ steps.version.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Build and push Analyzer service
+      - name: Build & Push Analyzer
+        if: needs.detect-changes.outputs.analyzer == 'true' || needs.detect-changes.outputs.shared == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./services/analyzer/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.DOCKER_USERNAME }}/eventflow-analyzer:latest
+            ${{ env.DOCKER_USERNAME }}/eventflow-analyzer:${{ steps.version.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Build and push Alert Engine service
+      - name: Build & Push Alert Engine
+        if: needs.detect-changes.outputs.alert-engine == 'true' || needs.detect-changes.outputs.shared == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./services/alert-engine/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.DOCKER_USERNAME }}/eventflow-alert-engine:latest
+            ${{ env.DOCKER_USERNAME }}/eventflow-alert-engine:${{ steps.version.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Build and push UI Backend service
+      - name: Build & Push UI Backend
+        if: needs.detect-changes.outputs.ui-backend == 'true' || needs.detect-changes.outputs.shared == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./services/ui-backend/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.DOCKER_USERNAME }}/eventflow-ui-backend:latest
+            ${{ env.DOCKER_USERNAME }}/eventflow-ui-backend:${{ steps.version.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Build and push Dashboard
+      - name: Build & Push Dashboard
+        if: needs.detect-changes.outputs.dashboard == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./dashboard
+          file: ./dashboard/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.DOCKER_USERNAME }}/eventflow-dashboard:latest
+            ${{ env.DOCKER_USERNAME }}/eventflow-dashboard:${{ steps.version.outputs.sha }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=http://localhost:8007
+            NEXT_PUBLIC_WS_URL=ws://localhost:8007
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CLEANUP OLD DOCKER IMAGES (Keep Last 3)
+  # ═══════════════════════════════════════════════════════════════════════════
+  cleanup-images:
+    name: Cleanup Old Docker Images
+    runs-on: ubuntu-latest
+    needs: docker-build
+    if: always() && needs.docker-build.result == 'success'
+    steps:
+      - name: Delete old Docker Hub tags (keep last 3)
+        env:
+          DOCKERHUB_USERNAME: ${{ env.DOCKER_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          # Function to cleanup old tags for a repository
+          cleanup_repo() {
+            REPO=$1
+            echo "Cleaning up old tags for $REPO..."
+            
+            # Get auth token
+            TOKEN=$(curl -s -H "Content-Type: application/json" -X POST \
+              -d '{"username": "'$DOCKERHUB_USERNAME'", "password": "'$DOCKERHUB_TOKEN'"}' \
+              https://hub.docker.com/v2/users/login/ | jq -r .token)
+            
+            if [ "$TOKEN" == "null" ] || [ -z "$TOKEN" ]; then
+              echo "Failed to authenticate for $REPO"
+              return
+            fi
+            
+            # Get all tags (excluding 'latest')
+            TAGS=$(curl -s -H "Authorization: Bearer $TOKEN" \
+              "https://hub.docker.com/v2/repositories/$DOCKERHUB_USERNAME/$REPO/tags?page_size=100" \
+              | jq -r '.results | map(select(.name != "latest")) | sort_by(.last_updated) | reverse | .[3:] | .[].name')
+            
+            # Delete old tags (keep latest + last 3 SHA tags)
+            for TAG in $TAGS; do
+              echo "Deleting $REPO:$TAG"
+              curl -s -X DELETE \
+                -H "Authorization: Bearer $TOKEN" \
+                "https://hub.docker.com/v2/repositories/$DOCKERHUB_USERNAME/$REPO/tags/$TAG/" || true
+            done
+          }
+          
+          # Cleanup each repository
+          for repo in eventflow-auth eventflow-orders eventflow-payments eventflow-notification eventflow-analyzer eventflow-alert-engine eventflow-ui-backend eventflow-dashboard; do
+            cleanup_repo $repo
+          done
+          
+          echo "Cleanup complete!"
 
   # ═══════════════════════════════════════════════════════════════════════════
   # DOCKER SECURITY SCAN
@@ -225,8 +469,10 @@ jobs:
   docker-security:
     name: Docker Security Scan
     runs-on: ubuntu-latest
-    needs: [docker-build]
-    if: github.event_name == 'pull_request'
+    needs: [detect-changes, go-build]
+    if: |
+      github.event_name == 'pull_request' && 
+      needs.detect-changes.outputs.any_service == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -271,8 +517,11 @@ jobs:
   integration-test:
     name: Integration Test
     runs-on: ubuntu-latest
-    needs: [go-build, dashboard, docker-lint]
-    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    needs: [detect-changes, go-build]
+    if: |
+      github.event_name == 'pull_request' && 
+      github.base_ref == 'main' &&
+      needs.detect-changes.outputs.any_service == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -358,12 +607,13 @@ jobs:
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest
-    needs: [go-lint, go-build, go-test, dashboard, docker-lint, docker-build, config-validation]
+    needs: [detect-changes, go-lint, go-build, go-test, dashboard, docker-lint, docker-build, config-validation, cleanup-images]
     if: always()
     steps:
       - name: Check all jobs passed
         run: |
           echo "Job Results:"
+          echo "  detect-changes: ${{ needs.detect-changes.result }}"
           echo "  go-lint: ${{ needs.go-lint.result }}"
           echo "  go-build: ${{ needs.go-build.result }}"
           echo "  go-test: ${{ needs.go-test.result }}"
@@ -371,10 +621,10 @@ jobs:
           echo "  docker-lint: ${{ needs.docker-lint.result }}"
           echo "  docker-build: ${{ needs.docker-build.result }}"
           echo "  config-validation: ${{ needs.config-validation.result }}"
+          echo "  cleanup-images: ${{ needs.cleanup-images.result }}"
 
           # Only fail on critical jobs - build and docker-build
           if [[ "${{ needs.go-build.result }}" == "failure" ]] || \
-             [[ "${{ needs.dashboard.result }}" == "failure" ]] || \
              [[ "${{ needs.docker-build.result }}" == "failure" ]]; then
             echo ""
             echo "❌ Critical jobs failed!"
