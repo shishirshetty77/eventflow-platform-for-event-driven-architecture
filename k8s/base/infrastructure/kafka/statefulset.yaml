@@ -55,10 +55,16 @@ spec:
           command:
             - /bin/sh
             - -c
-            - sleep 3600
+            - |
+              /etc/confluent/docker/configure && \
+              /etc/confluent/docker/ensure && \
+              ln -s /etc/kafka/server.properties /etc/kafka/kafka.properties && \
+              /etc/confluent/docker/launch
           env:
             - name: KAFKA_ZOOKEEPER_CONNECT
               value: "zookeeper.eventflow.svc.cluster.local:2181"
+            - name: KAFKA_ZOOKEEPER_CONNECTION_TIMEOUT_MS
+              value: "30000"
             - name: KAFKA_LISTENERS
               value: "PLAINTEXT://:9092"
             - name: KAFKA_ADVERTISED_LISTENERS
