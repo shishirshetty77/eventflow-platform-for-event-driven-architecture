@@ -31,5 +31,11 @@ auth:
     type: ClusterIP
     port: 8080
 
+# Secrets configuration
+secrets:
+  jwtSecret: "eventflow-super-secret-key-change-me-in-production"
+  redisPassword: ""
+  grafanaPassword: "admin"
+
 # Common configuration
 imagePullPolicy: Always
