@@ -8,8 +8,9 @@ namePrefix: ""
 nameSuffix: ""
 
 # Local/Kind specific configurations
-commonLabels:
-  environment: local
+labels:
+  - pairs:
+      environment: local
 
 # Patches for local environment
 patches:
@@ -57,12 +58,17 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/memory
         value: "32Mi"
-
-# ConfigMap overrides for local
-configMapGenerator:
-  - name: eventflow-config
-    behavior: merge
-    literals:
-      - ENVIRONMENT=development
-      - LOG_LEVEL=debug
-      - ALLOWED_ORIGINS=http://localhost:3001,http://eventflow.local,http://127.0.0.1:3001
+  # Override ConfigMap values for local
+  - target:
+      kind: ConfigMap
+      name: eventflow-config
+    patch: |-
+      - op: replace
+        path: /data/ENVIRONMENT
+        value: "development"
+      - op: replace
+        path: /data/LOG_LEVEL
+        value: "debug"
+      - op: replace
+        path: /data/ALLOWED_ORIGINS
+        value: "http://localhost:3001,http://eventflow.local,http://127.0.0.1:3001"
