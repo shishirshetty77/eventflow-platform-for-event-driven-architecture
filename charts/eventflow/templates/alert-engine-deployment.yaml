@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/component: core
     app.kubernetes.io/part-of: eventflow-platform
 spec:
-  replicas: {{ .Values.alertEngine.replicas }}
+  replicas: { { .Values.alertEngine.replicas } }
   selector:
     matchLabels:
       app.kubernetes.io/name: alert-engine
@@ -57,10 +57,10 @@ spec:
               memory: 32Mi
       containers:
         - name: alert-engine
-          image: {{ .Values.alertEngine.image }}
-          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          image: { { .Values.alertEngine.image } }
+          imagePullPolicy: { { .Values.imagePullPolicy } }
           ports:
-            - containerPort: 8080
+            - containerPort: 8084
               name: http
               protocol: TCP
             - containerPort: 9090
