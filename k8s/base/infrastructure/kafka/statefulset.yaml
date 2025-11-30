@@ -47,30 +47,28 @@ spec:
               memory: 32Mi
       containers:
         - name: kafka
-          image: bitnami/kafka:latest
+          image: confluentinc/cp-kafka:7.5.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9092
               name: kafka-internal
           env:
-            - name: KAFKA_CFG_ZOOKEEPER_CONNECT
+            - name: KAFKA_ZOOKEEPER_CONNECT
               value: "zookeeper.eventflow.svc.cluster.local:2181"
-            - name: KAFKA_CFG_LISTENERS
+            - name: KAFKA_LISTENERS
               value: "PLAINTEXT://:9092"
-            - name: KAFKA_CFG_ADVERTISED_LISTENERS
+            - name: KAFKA_ADVERTISED_LISTENERS
               value: "PLAINTEXT://kafka-0.kafka-headless.eventflow.svc.cluster.local:9092"
-            - name: KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE
+            - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
               value: "true"
-            - name: KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR
+            - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
               value: "1"
-            - name: KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
+            - name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
               value: "1"
-            - name: KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR
+            - name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
               value: "1"
-            - name: KAFKA_CFG_NUM_PARTITIONS
+            - name: KAFKA_NUM_PARTITIONS
               value: "3"
-            - name: ALLOW_PLAINTEXT_LISTENER
-              value: "yes"
           resources:
             requests:
               cpu: 250m
